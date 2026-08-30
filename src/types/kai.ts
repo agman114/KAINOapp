@@ -60,23 +60,14 @@ export interface ExamItem {
   points?: number;
 }
 
-export interface ElectiveCourse {
-  id: string;
-  title: string;
-  code: string;
-  department: string;
-  status: 'Обрано' | 'В обробці' | 'Доступно';
-}
+export const ERROR_CODES = {
+  ERR_101: '[ERR-101] Невірний логін або пароль на порталі КАИ',
+  ERR_102: '[ERR-102] Сервер cabinet.kai.edu.ua тимчасово недоступний або перевантажений',
+  ERR_103: '[ERR-103] Відсутній зв\'язок з мережею Інтернет',
+  ERR_201: '[ERR-201] Локальний сервер KAINOapp недоступний (порт 3000)',
+  ERR_202: '[ERR-202] Помилка зчитування збережених даних студента',
+  ERR_301: '[ERR-301] Помилка обробки (парсингу) розкладу КАИ',
+  ERR_401: '[ERR-401] Помилка автоматичного оновлення додатка',
+} as const;
 
-export interface QualificationWork {
-  topic: string;
-  supervisor: string;
-  status: string;
-  defenseDate?: string;
-}
-
-export interface BypassSheetItem {
-  department: string;
-  status: 'Підтверджено' | 'В очікуванні' | 'Не пройдено';
-  date?: string;
-}
+export type ErrorCodeKey = keyof typeof ERROR_CODES;

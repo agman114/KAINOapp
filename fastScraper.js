@@ -11,7 +11,6 @@ if (!fs.existsSync(DEBUG_DIR)) {
 async function scrapeKaiSchedule(username, password) {
   console.log(`\n=================== [ULTRA-FAST HTTP SCRAPE START] ===================`);
   console.log(`[FAST SCRAPER] Username: ${username}`);
-  console.log(`[FAST SCRAPER] Time: ${new Date().toISOString()}`);
 
   const startTime = Date.now();
   let cookieHeader = '';
@@ -23,11 +22,11 @@ async function scrapeKaiSchedule(username, password) {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
       'Accept-Language': 'uk,en-US;q=0.7,en;q=0.3',
     },
+    timeout: 20000,
     maxRedirects: 5,
     validateStatus: (status) => status >= 200 && status < 400,
   });
 
-  // Авто-обработка куки
   client.interceptors.response.use((response) => {
     const setCookies = response.headers['set-cookie'];
     if (setCookies && Array.isArray(setCookies)) {
@@ -45,15 +44,20 @@ async function scrapeKaiSchedule(username, password) {
   });
 
   try {
-    // 1. Запрос формы входа для получения _csrf-frontend
-    console.log('[FAST SCRAPER] 1. Fetching login CSRF token...');
-    const loginPageResp = await client.get('/login');
+    // 1. Fetch CSRF token
+    let loginPageResp;
+    try {
+      loginPageResp = await client.get('/login');
+    } catch (e) {
+      const err = new Error('[ERR-102] Сервер cabinet.kai.edu.ua недоступний або не відповідає на запити.');
+      err.code = 'ERR_102';
+      throw err;
+    }
+
     const $login = cheerio.load(loginPageResp.data);
     const csrfToken = $login('input[name="_csrf-frontend"]').val();
-    console.log(`[FAST SCRAPER] CSRF Token obtained: ${csrfToken ? csrfToken.substring(0, 15) : 'none'}...`);
 
-    // 2. Отправка формы авторизации
-    console.log('[FAST SCRAPER] 2. Submitting login credentials...');
+    // 2. Submit login form
     const params = new URLSearchParams();
     params.append('_csrf-frontend', csrfToken || '');
     params.append('LoginForm[username]', username);
@@ -61,16 +65,20 @@ async function scrapeKaiSchedule(username, password) {
     params.append('LoginForm[rememberMe]', '1');
     params.append('login-button', '');
 
-    await client.post('/login', params.toString(), {
+    const loginRes = await client.post('/login', params.toString(), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Referer': 'https://cabinet.kai.edu.ua/login',
       },
     });
 
-    console.log('[FAST SCRAPER] 3. Fetching all portal endpoints in parallel...');
+    if (loginRes.data && (loginRes.data.includes('Неправильний логін або пароль') || loginRes.data.includes('LoginForm[password]'))) {
+      const err = new Error('[ERR-101] Невірний логін або пароль на порталі КАИ.');
+      err.code = 'ERR_101';
+      throw err;
+    }
 
-    // 3. Параллельная выгрузка всех 8 страниц портала КАИ!
+    // 3. Fetch all 8 endpoints in parallel
     const [
       profileResp,
       scheduleResp,
@@ -92,38 +100,21 @@ async function scrapeKaiSchedule(username, password) {
     ]);
 
     const elapsed = Date.now() - startTime;
-    console.log(`=================== [ULTRA-FAST SCRAPE SUCCESS: ${elapsed}ms] ===================\n`);
-
-    const contentProfile = profileResp.data;
-    const contentSchedule = scheduleResp.data;
-    const contentSession = sessionResp.data;
-    const contentSessionSchedule = sessionSchedResp.data;
-    const contentBypass = bypassResp.data;
-    const contentQualification = qualResp.data;
-    const contentElective = electiveResp.data;
-    const contentPoll = pollResp.data;
-
-    fs.writeFileSync(path.join(DEBUG_DIR, 'profile.html'), contentProfile);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'schedule.html'), contentSchedule);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'session.html'), contentSession);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'session_schedule.html'), contentSessionSchedule);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'bypass_sheet.html'), contentBypass);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'qualification_work.html'), contentQualification);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'elective_choice.html'), contentElective);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'poll.html'), contentPoll);
+    console.log(`=================== [SCRAPE SUCCESS: ${elapsed}ms] ===================\n`);
 
     return {
-      contentProfile,
-      contentSchedule,
-      contentSession,
-      contentSessionSchedule,
-      contentBypass,
-      contentQualification,
-      contentElective,
-      contentPoll,
+      contentProfile: profileResp.data,
+      contentSchedule: scheduleResp.data,
+      contentSession: sessionResp.data,
+      contentSessionSchedule: sessionSchedResp.data,
+      contentBypass: bypassResp.data,
+      contentQualification: qualResp.data,
+      contentElective: electiveResp.data,
+      contentPoll: pollResp.data,
     };
   } catch (err) {
-    console.error('[FAST SCRAPER ERROR]:', err.message || err);
+    if (!err.code) err.code = 'ERR_102';
+    console.error(`[FAST SCRAPER ERROR ${err.code}]:`, err.message);
     throw err;
   }
 }
