@@ -8,7 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "npx expo export --platform web",
+    "build": "npx expo export --platform web && node fixDist.js",
     "desktop": "electron electron-main.js",
     "build:exe": "electron-builder --win nsis"
   },
@@ -22,6 +22,7 @@
       "dist/**/*",
       "electron-main.js",
       "server.js",
+      "fastScraper.js",
       "playwrightScraper.js",
       "local_user_data.json",
       "package.json"
