@@ -18,6 +18,14 @@
     "extraMetadata": {
       "main": "electron-main.js"
     },
+    "files": [
+      "dist/**/*",
+      "electron-main.js",
+      "server.js",
+      "playwrightScraper.js",
+      "local_user_data.json",
+      "package.json"
+    ],
     "asar": false,
     "win": {
       "target": "nsis"
