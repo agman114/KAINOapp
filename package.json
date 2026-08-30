@@ -2,7 +2,7 @@
   "name": "kainoapp",
   "productName": "KAINOapp",
   "version": "1.0.0",
-  "main": "electron-main.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -15,6 +15,9 @@
   "build": {
     "appId": "com.kainoapp.student",
     "productName": "KAINOapp",
+    "extraMetadata": {
+      "main": "electron-main.js"
+    },
     "asar": false,
     "win": {
       "target": "nsis"

@@ -6,10 +6,22 @@ const { exec } = require('child_process');
 const { scrapeKaiSchedule } = require('./playwrightScraper');
 
 const PORT = 3000;
-let DIST = path.join(__dirname, 'dist');
-if (!fs.existsSync(DIST)) {
-  DIST = __dirname;
+
+function getDistDir() {
+  const possiblePaths = [
+    path.join(__dirname, 'dist'),
+    path.join(process.resourcesPath || __dirname, 'app', 'dist'),
+    path.join(__dirname),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(path.join(p, 'index.html'))) {
+      return p;
+    }
+  }
+  return path.join(__dirname, 'dist');
 }
+
+const DIST = getDistDir();
 const LOCAL_DATA_FILE = path.join(__dirname, 'local_user_data.json');
 const PACKAGE_JSON_PATH = path.join(__dirname, 'package.json');
 
@@ -185,7 +197,6 @@ function parsePortalServices(contentBypass, contentQual, contentElective, conten
 }
 
 const server = http.createServer(async (req, res) => {
-  // CORS Headers for Electron and Web Clients
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -308,8 +319,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const cleanUrl = (req.url || '/').split('?')[0];
-  let filePath = path.join(DIST, cleanUrl === '/' ? 'index.html' : cleanUrl);
+  const rawUrl = (req.url || '/').split('?')[0];
+  const cleanUrl = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+  let filePath = path.join(DIST, cleanUrl === '' ? 'index.html' : cleanUrl);
+
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     filePath = path.join(DIST, 'index.html');
   }
@@ -320,7 +333,7 @@ const server = http.createServer(async (req, res) => {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       console.error(`[SERVER FILE READ ERROR] Path: "${filePath}", Error:`, err.message);
-      res.writeHead(500);
+      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Error loading file');
     } else {
       res.writeHead(200, { 'Content-Type': contentType });
@@ -331,7 +344,7 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.log('[SERVER] Port 3000 is already in use by another instance. Reusing server.');
+    console.log('[SERVER] Port 3000 is already in use. Reusing server.');
   } else {
     console.error('[SERVER ERROR]:', err);
   }
