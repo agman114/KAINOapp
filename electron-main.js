@@ -23,9 +23,9 @@ function createWindow() {
   // Загружаем скомпилированную веб-сборку или локальный сервер
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
-    mainWindow.loadURL('http://localhost:8080');
+    mainWindow.loadURL('http://localhost:3000');
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
+    mainWindow.loadURL('http://localhost:3000');
   }
 
   // Скрытие в трей при закрытии окна

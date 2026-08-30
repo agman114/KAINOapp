@@ -7,7 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "desktop": "electron electron-main.js"
+    "desktop": "electron electron-main.js",
+    "build:exe": "electron-builder --win nsis"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",
@@ -28,6 +29,7 @@
     "@babel/core": "^7.24.0",
     "@types/react": "~18.2.45",
     "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.3.3"
   },
   "private": true
