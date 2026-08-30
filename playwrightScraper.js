@@ -8,7 +8,7 @@ if (!fs.existsSync(DEBUG_DIR)) {
 }
 
 async function scrapeKaiSchedule(username, password) {
-  console.log(`\n=================== [LOGGING START] ===================`);
+  console.log(`\n=================== [MASTER SCRAPE START] ===================`);
   console.log(`[SCRAPER LOG] Username: ${username}`);
   console.log(`[SCRAPER LOG] Time: ${new Date().toISOString()}`);
 
@@ -24,56 +24,70 @@ async function scrapeKaiSchedule(username, password) {
   try {
     console.log('[SCRAPER LOG] 1. Opening https://cabinet.kai.edu.ua/login...');
     const resp1 = await page.goto('https://cabinet.kai.edu.ua/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    console.log(`[SCRAPER LOG] Login page status: ${resp1.status()}`);
-    console.log(`[SCRAPER LOG] Login page title: "${await page.title()}"`);
 
-    console.log('[SCRAPER LOG] 2. Entering login & password credentials...');
+    console.log('[SCRAPER LOG] 2. Entering credentials...');
     await page.fill('input[name="LoginForm[username]"]', username);
     await page.fill('input[name="LoginForm[password]"]', password);
 
-    console.log('[SCRAPER LOG] 3. Clicking login button...');
+    console.log('[SCRAPER LOG] 3. Submitting login form...');
     await page.click('button[name="login-button"]');
-    
-    // Ждем навигацию или появление элементов после входа
-    console.log('[SCRAPER LOG] Waiting 5 seconds after login click...');
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(4000);
 
-    const currentUrlAfterLogin = page.url();
-    console.log(`[SCRAPER LOG] URL after login submission: ${currentUrlAfterLogin}`);
-
-    // Читаем возможный текст ошибки на форме входа
-    const errorText = await page.evaluate(() => {
-      const errEl = document.querySelector('.invalid-feedback, .alert-danger, .error-summary');
-      return errEl ? errEl.innerText.trim() : null;
-    });
-    if (errorText) {
-      console.log(`[SCRAPER ERROR LOG] Portal returned error message: "${errorText}"`);
-    }
-
-    console.log('[SCRAPER LOG] 4. Navigating to https://cabinet.kai.edu.ua/student/schedule?activeWeek=1+тиждень');
-    await page.goto('https://cabinet.kai.edu.ua/student/schedule?activeWeek=1+тиждень', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    const contentWeek1 = await page.content();
-    console.log(`[SCRAPER LOG] Week 1 HTML length: ${contentWeek1.length} chars. Final URL: ${page.url()}`);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'week1.html'), contentWeek1);
-
-    console.log('[SCRAPER LOG] 5. Navigating to https://cabinet.kai.edu.ua/student/schedule?activeWeek=2+тиждень');
-    await page.goto('https://cabinet.kai.edu.ua/student/schedule?activeWeek=2+тиждень', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    const contentWeek2 = await page.content();
-    console.log(`[SCRAPER LOG] Week 2 HTML length: ${contentWeek2.length} chars. Final URL: ${page.url()}`);
-    fs.writeFileSync(path.join(DEBUG_DIR, 'week2.html'), contentWeek2);
-
-    console.log('[SCRAPER LOG] 6. Navigating to https://cabinet.kai.edu.ua/student/student/personal-info');
+    // 1. Personal Info
     await page.goto('https://cabinet.kai.edu.ua/student/student/personal-info', { waitUntil: 'domcontentloaded', timeout: 30000 });
     const contentProfile = await page.content();
-    console.log(`[SCRAPER LOG] Profile HTML length: ${contentProfile.length} chars. Final URL: ${page.url()}`);
     fs.writeFileSync(path.join(DEBUG_DIR, 'profile.html'), contentProfile);
 
-    console.log(`=================== [LOGGING END SUCCESS] ===================\n`);
+    // 2. Schedule
+    await page.goto('https://cabinet.kai.edu.ua/student/schedule', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentSchedule = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'schedule.html'), contentSchedule);
+
+    // 3. Session / Grades
+    await page.goto('https://cabinet.kai.edu.ua/student/session', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentSession = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'session.html'), contentSession);
+
+    // 4. Session Schedule
+    await page.goto('https://cabinet.kai.edu.ua/student/session-schedule', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentSessionSchedule = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'session_schedule.html'), contentSessionSchedule);
+
+    // 5. Bypass Sheet
+    await page.goto('https://cabinet.kai.edu.ua/student/bypass-sheet', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentBypass = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'bypass_sheet.html'), contentBypass);
+
+    // 6. Qualification Work
+    await page.goto('https://cabinet.kai.edu.ua/student/qualification-work', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentQualification = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'qualification_work.html'), contentQualification);
+
+    // 7. Elective Choice
+    await page.goto('https://cabinet.kai.edu.ua/student/elective-choice', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentElective = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'elective_choice.html'), contentElective);
+
+    // 8. Poll
+    await page.goto('https://cabinet.kai.edu.ua/student/poll', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const contentPoll = await page.content();
+    fs.writeFileSync(path.join(DEBUG_DIR, 'poll.html'), contentPoll);
+
     await browser.close();
-    return { success: true, contentWeek1, contentWeek2, contentProfile };
+    console.log(`=================== [MASTER SCRAPE SUCCESS] ===================\n`);
+
+    return {
+      contentProfile,
+      contentSchedule,
+      contentSession,
+      contentSessionSchedule,
+      contentBypass,
+      contentQualification,
+      contentElective,
+      contentPoll,
+    };
   } catch (err) {
-    console.error('[SCRAPER FATAL ERROR]:', err);
-    console.log(`=================== [LOGGING END ERROR] ===================\n`);
+    console.error('[SCRAPER LOG MASTER ERROR]:', err);
     await browser.close();
     throw err;
   }

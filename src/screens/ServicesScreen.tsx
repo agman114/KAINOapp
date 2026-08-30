@@ -6,18 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { BypassSheetItem } from '../types/kai';
+import { PortalServicesData } from '../types/kai';
 
-export const ServicesScreen: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'bypass' | 'poll' | 'finance'>('bypass');
+interface Props {
+  servicesData?: PortalServicesData;
+}
 
-  const bypassItems: BypassSheetItem[] = [
-    { department: 'Бібліотека КАІ', status: 'Підтверджено', date: '01.09.2025' },
-    { department: 'Студентське містечко / Гуртожиток', status: 'Підтверджено', date: '01.09.2025' },
-    { department: 'Бухгалтерія (Фінансовий відділ)', status: 'Підтверджено', date: '01.09.2025' },
-    { department: 'Військово-мобілізаційний відділ', status: 'В очікуванні' },
-    { department: 'Деканат комп\'ютерних систем', status: 'В очікуванні' },
-  ];
+export const ServicesScreen: React.FC<Props> = ({ servicesData }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'bypass' | 'poll' | 'electives' | 'qualification'>('bypass');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -27,80 +23,94 @@ export const ServicesScreen: React.FC = () => {
         <Text style={styles.headerTitle}>Студентські сервіси</Text>
 
         {/* Переключатель подвкладок */}
-        <View style={styles.subTabRow}>
-          <TouchableOpacity
-            style={[styles.subTabBtn, activeSubTab === 'bypass' && styles.subTabBtnActive]}
-            onPress={() => setActiveSubTab('bypass')}
-          >
-            <Text style={[styles.subTabText, activeSubTab === 'bypass' && styles.subTabTextActive]}>
-              📋 Обхідний лист
-            </Text>
-          </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
+          <View style={styles.subTabRow}>
+            <TouchableOpacity
+              style={[styles.subTabBtn, activeSubTab === 'bypass' && styles.subTabBtnActive]}
+              onPress={() => setActiveSubTab('bypass')}
+            >
+              <Text style={[styles.subTabText, activeSubTab === 'bypass' && styles.subTabTextActive]}>
+                📋 Обхідний лист
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.subTabBtn, activeSubTab === 'poll' && styles.subTabBtnActive]}
-            onPress={() => setActiveSubTab('poll')}
-          >
-            <Text style={[styles.subTabText, activeSubTab === 'poll' && styles.subTabTextActive]}>
-              ✍️ Опитування
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.subTabBtn, activeSubTab === 'electives' && styles.subTabBtnActive]}
+              onPress={() => setActiveSubTab('electives')}
+            >
+              <Text style={[styles.subTabText, activeSubTab === 'electives' && styles.subTabTextActive]}>
+                📚 Вибіркові
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.subTabBtn, activeSubTab === 'finance' && styles.subTabBtnActive]}
-            onPress={() => setActiveSubTab('finance')}
-          >
-            <Text style={[styles.subTabText, activeSubTab === 'finance' && styles.subTabTextActive]}>
-              💳 Фінанси
-            </Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.subTabBtn, activeSubTab === 'qualification' && styles.subTabBtnActive]}
+              onPress={() => setActiveSubTab('qualification')}
+            >
+              <Text style={[styles.subTabText, activeSubTab === 'qualification' && styles.subTabTextActive]}>
+                🎓 Кваліфікаційна
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.subTabBtn, activeSubTab === 'poll' && styles.subTabBtnActive]}
+              onPress={() => setActiveSubTab('poll')}
+            >
+              <Text style={[styles.subTabText, activeSubTab === 'poll' && styles.subTabTextActive]}>
+                ✍️ Опитування
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
 
       {/* Подвкладка 1: Обхідний лист */}
       {activeSubTab === 'bypass' && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Статус обхідного листа</Text>
-          {bypassItems.map((item, idx) => {
-            const isDone = item.status === 'Підтверджено';
-            return (
-              <View key={idx} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.deptName}>{item.department}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: isDone ? '#10b98122' : '#f59e0b22', borderColor: isDone ? '#10b981' : '#f59e0b' }]}>
-                    <Text style={[styles.statusBadgeText, { color: isDone ? '#34d399' : '#fbbf24' }]}>
-                      {item.status}
-                    </Text>
-                  </View>
-                </View>
-                {item.date && <Text style={styles.cardDate}>Підтверджено: {item.date}</Text>}
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Подвкладка 2: Опитування */}
-      {activeSubTab === 'poll' && (
-        <View style={styles.section}>
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>✍️</Text>
-            <Text style={styles.emptyTitle}>Активних опитувань немає</Text>
-            <Text style={styles.emptySubtitle}>
-              Опитування якості викладання та освітнього процесу від університету з'являться тут під час анкетування.
+          <View style={styles.card}>
+            <Text style={styles.portalBadgeText}>ПОРТАЛ КАІ (НАЖИВО)</Text>
+            <Text style={styles.cardTitle}>Обхідний лист</Text>
+            <Text style={styles.cardContent}>
+              {servicesData?.bypassText || 'Обхідний лист ще недоступний...'}
             </Text>
           </View>
         </View>
       )}
 
-      {/* Подвкладка 3: Фінанси */}
-      {activeSubTab === 'finance' && (
+      {/* Подвкладка 2: Вибіркові дисципліни */}
+      {activeSubTab === 'electives' && (
         <View style={styles.section}>
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>💳</Text>
-            <Text style={styles.emptyTitle}>Фінансові документи</Text>
-            <Text style={styles.emptySubtitle}>
-              Інформація про оплату навчання та контракти завантажується з фінансового відділу КАІ.
+          <View style={styles.card}>
+            <Text style={styles.portalBadgeText}>ПОРТАЛ КАІ (НАЖИВО)</Text>
+            <Text style={styles.cardTitle}>Вибіркові дисципліни</Text>
+            <Text style={styles.cardContent}>
+              {servicesData?.electiveText || 'Вибіркових дисциплін для вашої академічної групи не передбачено'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Подвкладка 3: Кваліфікаційна робота */}
+      {activeSubTab === 'qualification' && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.portalBadgeText}>ПОРТАЛ КАІ (НАЖИВО)</Text>
+            <Text style={styles.cardTitle}>Кваліфікаційна робота</Text>
+            <Text style={styles.cardContent}>
+              {servicesData?.qualificationText || 'Кваліфікаційна робота ще не доступна...'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Подвкладка 4: Опитування */}
+      {activeSubTab === 'poll' && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.portalBadgeText}>ПОРТАЛ КАІ (НАЖИВО)</Text>
+            <Text style={styles.cardTitle}>Опитування здобувачів</Text>
+            <Text style={styles.cardContent}>
+              {servicesData?.pollText || 'Опитування для вашої академічної групи відсутні'}
             </Text>
           </View>
         </View>
@@ -140,6 +150,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 16,
   },
+  tabScroll: {
+    marginHorizontal: -4,
+  },
   subTabRow: {
     flexDirection: 'row',
     backgroundColor: '#0f172a',
@@ -148,8 +161,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   subTabBtn: {
-    flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: 'center',
     borderRadius: 8,
   },
@@ -158,7 +171,7 @@ const styles = StyleSheet.create({
   },
   subTabText: {
     color: '#94a3b8',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   subTabTextActive: {
@@ -167,69 +180,29 @@ const styles = StyleSheet.create({
   section: {
     gap: 12,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
   card: {
     backgroundColor: '#1e293b',
     borderRadius: 16,
-    padding: 16,
+    padding: 20,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  deptName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#f8fafc',
-    flex: 1,
-    paddingRight: 10,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  statusBadgeText: {
+  portalBadgeText: {
+    color: '#38bdf8',
     fontSize: 11,
     fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 6,
   },
-  cardDate: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 8,
-  },
-  emptyBox: {
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  emptyIcon: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
-  emptyTitle: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#f8fafc',
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#94a3b8',
-    textAlign: 'center',
-    lineHeight: 18,
+  cardContent: {
+    fontSize: 14,
+    color: '#cbd5e1',
+    lineHeight: 20,
   },
 });

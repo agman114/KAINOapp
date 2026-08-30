@@ -35,7 +35,17 @@ export interface StudentProfile {
   studentIdCard?: string;
   email?: string;
   phone?: string;
+  address?: string;
   isAuthenticated: boolean;
+}
+
+export interface PortalServicesData {
+  bypassText?: string;
+  qualificationText?: string;
+  electiveText?: string;
+  pollText?: string;
+  sessionText?: string;
+  sessionScheduleText?: string;
 }
 
 export interface ExamItem {

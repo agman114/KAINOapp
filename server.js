@@ -28,6 +28,9 @@ function getLocalVersion() {
   }
 }
 
+/**
+ * 1. Парсер расписания занятий
+ */
 function parseScheduleWithCheerio(html) {
   console.log('[CHEERIO PARSER] Scoped parsing of all semester week panes (.schedule-week-pane)...');
   const daySchedules = [];
@@ -121,11 +124,15 @@ function parseScheduleWithCheerio(html) {
   return daySchedules;
 }
 
+/**
+ * 2. Парсер личной информации студента
+ */
 function parseProfilePage(html, fallbackUsername) {
   let fullName = fallbackUsername;
   let groupName = 'Б-F7-26-1-КС';
   let faculty = 'Факультет комп\'ютерних систем';
   let specialty = '121 Інженерія програмного забезпечення';
+  let address = '';
 
   if (html) {
     const $ = cheerio.load(html);
@@ -134,6 +141,12 @@ function parseProfilePage(html, fallbackUsername) {
 
     const groupText = $('.group-name').text().trim();
     if (groupText) groupName = groupText;
+
+    const siteText = $('.site-content').text().replace(/\s+/g, ' ').trim();
+    const addrMatch = siteText.match(/Адреса проживання ([^А-ЯA-Z]*[^\n]*)/i);
+    if (addrMatch) {
+      address = addrMatch[1].trim();
+    }
   }
 
   return {
@@ -143,16 +156,34 @@ function parseProfilePage(html, fallbackUsername) {
     specialty,
     course: 2,
     educationForm: 'Денна',
+    address,
     isAuthenticated: true,
   };
 }
 
+/**
+ * 3. Парсер обходного листа, диплома, выборочных предметов и опросов
+ */
+function parsePortalServices(contentBypass, contentQual, contentElective, contentPoll, contentSession, contentSessionSchedule) {
+  const getCleanText = (html) => {
+    if (!html) return '';
+    const $ = cheerio.load(html);
+    return $('.site-content').text().replace(/\s+/g, ' ').trim();
+  };
+
+  return {
+    bypassText: getCleanText(contentBypass) || 'Обхідний лист ще недоступний...',
+    qualificationText: getCleanText(contentQual) || 'Кваліфікаційна робота ще не доступна...',
+    electiveText: getCleanText(contentElective) || 'Вибіркових дисциплін для вашої академічної групи не передбачено',
+    pollText: getCleanText(contentPoll) || 'Опитування для вашої академічної групи відсутні',
+    sessionText: getCleanText(contentSession) || 'Оцінки ще не доступні...',
+    sessionScheduleText: getCleanText(contentSessionSchedule) || 'Подій сесії не знайдено.',
+  };
+}
+
 const server = http.createServer(async (req, res) => {
-  // Эндпоинты проверки и установки обновлений приложения (PC & Mobile)
   if (req.url === '/api/system/check-update' && req.method === 'GET') {
     const currentVer = getLocalVersion();
-    
-    // Выполняем git fetch origin main для проверки новых коммитов на GitHub
     exec('git fetch origin main && git rev-parse HEAD && git rev-parse origin/main', (err, stdout) => {
       let updateAvailable = false;
       let localHash = '';
@@ -239,12 +270,21 @@ const server = http.createServer(async (req, res) => {
         const { username, password } = JSON.parse(body);
         const pwResult = await scrapeKaiSchedule(username, password);
         const profile = parseProfilePage(pwResult.contentProfile, username);
-        const schedule = parseScheduleWithCheerio(pwResult.contentWeek1 || pwResult.contentWeek2);
+        const schedule = parseScheduleWithCheerio(pwResult.contentSchedule);
+        const servicesData = parsePortalServices(
+          pwResult.contentBypass,
+          pwResult.contentQualification,
+          pwResult.contentElective,
+          pwResult.contentPoll,
+          pwResult.contentSession,
+          pwResult.contentSessionSchedule
+        );
 
-        fs.writeFileSync(LOCAL_DATA_FILE, JSON.stringify({ profile, schedule }), 'utf-8');
+        const fullUserData = { profile, schedule, servicesData };
+        fs.writeFileSync(LOCAL_DATA_FILE, JSON.stringify(fullUserData), 'utf-8');
 
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: true, profile, schedule }));
+        res.end(JSON.stringify({ success: true, ...fullUserData }));
       } catch (err) {
         console.error('[SERVER LOG API ERROR]:', err);
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -274,5 +314,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Server with Git Auto-Updater running at http://localhost:${PORT}/`);
+  console.log(`KAINOapp Server reading 100% REAL PORTAL ENDPOINTS at http://localhost:3000/`);
 });
