@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
 const { exec } = require('child_process');
-const { scrapeKaiSchedule } = require('./playwrightScraper');
+const { scrapeKaiSchedule } = require('./fastScraper');
 
 const PORT = 3000;
 
@@ -351,5 +351,5 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Server reading 100% REAL PORTAL ENDPOINTS at http://localhost:3000/`);
+  console.log(`KAINOapp Ultra-Fast Server reading 100% REAL PORTAL ENDPOINTS at http://localhost:3000/`);
 });
