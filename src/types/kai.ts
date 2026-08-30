@@ -12,12 +12,15 @@ export interface Lesson {
   weekNumber: number; // 1 = 1 тиждень, 2 = 2 тиждень, etc.
   weekName?: string;  // e.g. "1 тиждень"
   dayOfWeek: number;  // 1 = Понеділок, ..., 6 = Субота
+  dateStr?: string;   // e.g. "31.08"
   onlineUrl?: string; // Ссылка на MS Teams / Zoom
 }
 
 export interface DaySchedule {
   dayOfWeek: number;
   dayName: string;
+  dateStr?: string;   // e.g. "31.08"
+  weekNumber: number; // 1 or 2
   lessons: Lesson[];
 }
 

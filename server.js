@@ -17,18 +17,34 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
+/**
+ * Парсер расписания КАИ по точным календарным датам и неделям
+ */
 function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
-  console.log('[CHEERIO PARSER] Parsing personal student schedule by week numbers (1 тиждень, 2 тиждень)...');
+  console.log('[CHEERIO PARSER] Parsing schedule by calendar dates & study weeks...');
   const daySchedules = [];
   const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
-
-  for (let d = 1; d <= 6; d++) {
-    daySchedules.push({ dayOfWeek: d, dayName: days[d - 1], lessons: [] });
-  }
 
   function extractWeek(html, weekNum, weekLabel) {
     if (!html) return;
     const $ = cheerio.load(html);
+
+    // Извлекаем точные календарные даты столбцов (31.08, 01.09, etc.)
+    const colDates = [];
+    $('.grid-header-row .grid-cell').slice(0, 6).each((idx, el) => {
+      const text = $(el).find('span').text().trim() || $(el).text().replace(/\s+/g, ' ').trim();
+      const dateMatch = text.match(/(\d{2}\.\d{2})/);
+      colDates.push(dateMatch ? dateMatch[1] : '');
+    });
+
+    // Создаем структуру дней для этой недели
+    const weekDaySchedules = days.map((dayName, dIdx) => ({
+      dayOfWeek: dIdx + 1,
+      dayName,
+      dateStr: colDates[dIdx] || '',
+      weekNumber: weekNum,
+      lessons: [],
+    }));
 
     $('.grid-row').each((rowIdx, rowEl) => {
       const timeCell = $(rowEl).find('.grid-cell').eq(0);
@@ -60,15 +76,15 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
           const room = $card.find('.fa-building').parent().text().replace(/\s+/g, ' ').trim() || 'Аудиторія';
           const onlineUrl = $card.find('a[href*="teams"]').attr('href') || $card.find('a[href*="zoom"]').attr('href');
 
-          const dayObj = daySchedules.find(ds => ds.dayOfWeek === dayOfWeek);
+          const dayObj = weekDaySchedules.find(ds => ds.dayOfWeek === dayOfWeek);
           if (dayObj) {
             const isDuplicate = dayObj.lessons.some(
-              l => l.subject === subject && l.timeStart === timeStart && l.type === type && l.weekNumber === weekNum
+              l => l.subject === subject && l.timeStart === timeStart && l.type === type
             );
 
             if (!isDuplicate) {
               dayObj.lessons.push({
-                id: `${dayOfWeek}-week${weekNum}-${rowIdx}-${cardIdx}`,
+                id: `${dayOfWeek}-w${weekNum}-${rowIdx}-${cardIdx}`,
                 subject,
                 type,
                 timeStart,
@@ -79,6 +95,7 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
                 weekNumber: weekNum,
                 weekName: weekLabel,
                 dayOfWeek,
+                dateStr: dayObj.dateStr,
                 onlineUrl,
               });
             }
@@ -86,21 +103,23 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
         });
       });
     });
+
+    // Сортировка по времени
+    weekDaySchedules.forEach(ds => {
+      ds.lessons.sort((a, b) => {
+        const [h1, m1] = a.timeStart.split(':').map(Number);
+        const [h2, m2] = b.timeStart.split(':').map(Number);
+        return (h1 * 60 + m1) - (h2 * 60 + m2);
+      });
+      daySchedules.push(ds);
+    });
   }
 
   extractWeek(htmlWeek1, 1, '1 тиждень');
   extractWeek(htmlWeek2, 2, '2 тиждень');
 
-  daySchedules.forEach(ds => {
-    ds.lessons.sort((a, b) => {
-      const [h1, m1] = a.timeStart.split(':').map(Number);
-      const [h2, m2] = b.timeStart.split(':').map(Number);
-      return (h1 * 60 + m1) - (h2 * 60 + m2);
-    });
-  });
-
   const total = daySchedules.reduce((acc, d) => acc + d.lessons.length, 0);
-  console.log(`[CHEERIO PARSER] Total parsed study week lessons: ${total}`);
+  console.log(`[CHEERIO PARSER] Total parsed lessons linked to dates: ${total}`);
 
   return daySchedules;
 }
@@ -208,5 +227,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Server running with Study Weeks parsing at http://localhost:${PORT}/`);
+  console.log(`KAINOapp Date-Linked Server running at http://localhost:${PORT}/`);
 });

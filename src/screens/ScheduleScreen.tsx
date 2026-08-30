@@ -25,7 +25,6 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   
-  // Login modal
   const [loginModalVisible, setLoginModalVisible] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -37,23 +36,33 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
     remainingMinutes: number;
   } | null>(null);
 
-  const days = [
-    { id: 1, name: 'Пн' },
-    { id: 2, name: 'Вт' },
-    { id: 3, name: 'Ср' },
-    { id: 4, name: 'Чт' },
-    { id: 5, name: 'Пт' },
-    { id: 6, name: 'Сб' },
-  ];
+  // Форматирование сегодняшней даты с устройства пользователя (например "31.08")
+  const getTodayDeviceDateStr = () => {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}.${month}`;
+  };
 
   useEffect(() => {
-    const today = new Date().getDay();
-    if (today >= 1 && today <= 6) {
-      setSelectedDay(today);
+    // 1. Установка текущего дня недели с устройства пользователя (1 = Пн, ..., 6 = Сб)
+    const todayDay = new Date().getDay();
+    if (todayDay >= 1 && todayDay <= 6) {
+      setSelectedDay(todayDay);
     } else {
       setSelectedDay(1);
     }
 
+    // 2. Автоматический поиск и выбор недели по сегодняшней дате устройства
+    const todayStr = getTodayDeviceDateStr();
+    const matchingWeekObj = schedule.find(ds => ds.dateStr === todayStr);
+    if (matchingWeekObj && matchingWeekObj.weekNumber) {
+      setWeekFilter(matchingWeekObj.weekNumber);
+    } else if (schedule.length > 0 && schedule[0].weekNumber) {
+      setWeekFilter(schedule[0].weekNumber);
+    }
+
+    // 3. Отслеживание текущей пары в реальном времени
     const checkCurrent = () => {
       const info = KaiService.getCurrentLesson(schedule);
       setCurrentLessonInfo(info);
@@ -64,10 +73,30 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
     return () => clearInterval(interval);
   }, [schedule]);
 
-  const activeDaySchedule = schedule.find(d => d.dayOfWeek === selectedDay);
-  const lessons = (activeDaySchedule?.lessons || []).filter(l => {
+  const activeDaySchedules = schedule.filter(d => {
+    if (d.dayOfWeek !== selectedDay) return false;
     if (weekFilter === 'all') return true;
-    return l.weekNumber === weekFilter;
+    return d.weekNumber === weekFilter;
+  });
+
+  const lessons = activeDaySchedules.flatMap(d => d.lessons);
+
+  // Список дней с их точной датой для текущей выбранной недели
+  const daysBase = [
+    { id: 1, name: 'Пн' },
+    { id: 2, name: 'Вт' },
+    { id: 3, name: 'Ср' },
+    { id: 4, name: 'Чт' },
+    { id: 5, name: 'Пт' },
+    { id: 6, name: 'Сб' },
+  ];
+
+  const daysWithDates = daysBase.map(d => {
+    const match = schedule.find(s => s.dayOfWeek === d.id && (weekFilter === 'all' || s.weekNumber === weekFilter));
+    return {
+      ...d,
+      dateStr: match ? match.dateStr : '',
+    };
   });
 
   const handleRefreshClick = async () => {
@@ -132,6 +161,7 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
           <View>
             <Text style={styles.groupBadge}>{student.groupName || 'Б-F7-26-1-КС'}</Text>
             <Text style={styles.headerTitle}>Розклад занять</Text>
+            <Text style={styles.todayDateText}>Сьогодні: {getTodayDeviceDateStr()}</Text>
           </View>
           <TouchableOpacity
             style={styles.refreshButton}
@@ -236,9 +266,9 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
         </View>
       )}
 
-      {/* Переключатель дней недели */}
+      {/* Переключатель дней недели с календарными датами */}
       <View style={styles.dayTabs}>
-        {days.map(d => {
+        {daysWithDates.map(d => {
           const isActive = d.id === selectedDay;
           return (
             <TouchableOpacity
@@ -249,6 +279,11 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
               <Text style={[styles.dayTabText, isActive && styles.dayTabTextActive]}>
                 {d.name}
               </Text>
+              {d.dateStr ? (
+                <Text style={[styles.dayDateText, isActive && styles.dayDateTextActive]}>
+                  {d.dateStr}
+                </Text>
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -257,16 +292,16 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
       {/* Список пар */}
       {lessons.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🔄</Text>
-          <Text style={styles.emptyTitle}>Розклад ще не завантажено</Text>
+          <Text style={styles.emptyIcon}>📅</Text>
+          <Text style={styles.emptyTitle}>Пар немає на обраний день</Text>
           <Text style={styles.emptySubtitle}>
-            Натисніть кнопку "🔄 Оновити розклад", щоб автоматично завантажити пари з cabinet.kai.edu.ua!
+            На цей день заняття відсутні або розклад ще не оновлено.
           </Text>
           <TouchableOpacity
             style={styles.emptyFetchButton}
             onPress={handleRefreshClick}
           >
-            <Text style={styles.emptyFetchButtonText}>🔑 Завантажити розклад з КАИ</Text>
+            <Text style={styles.emptyFetchButtonText}>🔄 Оновити розклад з КАИ</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -285,11 +320,9 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
                   <View style={[styles.typeBadge, { backgroundColor: typeStyle.bg, borderColor: typeStyle.border }]}>
                     <Text style={[styles.typeBadgeText, { color: typeStyle.text }]}>{lesson.type}</Text>
                   </View>
-                  {lesson.weekNumber && (
-                    <Text style={styles.weekTag}>
-                      {lesson.weekName || `${lesson.weekNumber} тиждень`}
-                    </Text>
-                  )}
+                  <Text style={styles.weekTag}>
+                    {lesson.dateStr ? `📅 ${lesson.dateStr}` : (lesson.weekName || `${lesson.weekNumber} тиждень`)}
+                  </Text>
                 </View>
 
                 <Text style={styles.subjectTitle}>{lesson.subject}</Text>
@@ -356,6 +389,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#f8fafc',
     marginTop: 2,
+  },
+  todayDateText: {
+    fontSize: 12,
+    color: '#a5b4fc',
+    marginTop: 2,
+    fontWeight: '600',
   },
   refreshButton: {
     backgroundColor: '#0284c7',
@@ -459,7 +498,7 @@ const styles = StyleSheet.create({
   },
   dayTab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
     borderRadius: 10,
   },
@@ -468,11 +507,19 @@ const styles = StyleSheet.create({
   },
   dayTabText: {
     color: '#94a3b8',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   dayTabTextActive: {
     color: '#ffffff',
+  },
+  dayDateText: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  dayDateTextActive: {
+    color: '#e0f2fe',
   },
   lessonCard: {
     flexDirection: 'row',
@@ -528,7 +575,7 @@ const styles = StyleSheet.create({
   },
   weekTag: {
     fontSize: 11,
-    color: '#64748b',
+    color: '#38bdf8',
     fontWeight: '600',
   },
   subjectTitle: {
