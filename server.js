@@ -6,15 +6,18 @@ const { exec } = require('child_process');
 const { scrapeKaiSchedule } = require('./playwrightScraper');
 
 const PORT = 3000;
-const DIST = path.join(__dirname, 'dist');
+let DIST = path.join(__dirname, 'dist');
+if (!fs.existsSync(DIST)) {
+  DIST = __dirname;
+}
 const LOCAL_DATA_FILE = path.join(__dirname, 'local_user_data.json');
 const PACKAGE_JSON_PATH = path.join(__dirname, 'package.json');
 
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
 };
@@ -182,6 +185,17 @@ function parsePortalServices(contentBypass, contentQual, contentElective, conten
 }
 
 const server = http.createServer(async (req, res) => {
+  // CORS Headers for Electron and Web Clients
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
   if (req.url === '/api/system/check-update' && req.method === 'GET') {
     const currentVer = getLocalVersion();
     exec('git fetch origin main && git rev-parse HEAD && git rev-parse origin/main', (err, stdout) => {
@@ -294,7 +308,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  let filePath = path.join(DIST, req.url === '/' ? 'index.html' : req.url);
+  const cleanUrl = (req.url || '/').split('?')[0];
+  let filePath = path.join(DIST, cleanUrl === '/' ? 'index.html' : cleanUrl);
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     filePath = path.join(DIST, 'index.html');
   }
@@ -304,11 +319,12 @@ const server = http.createServer(async (req, res) => {
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
+      console.error(`[SERVER FILE READ ERROR] Path: "${filePath}", Error:`, err.message);
       res.writeHead(500);
       res.end('Error loading file');
     } else {
       res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
+      res.end(content);
     }
   });
 });

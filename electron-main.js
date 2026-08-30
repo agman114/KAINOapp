@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, Notification } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { fork } = require('child_process');
 
 let mainWindow;
@@ -25,15 +26,21 @@ function createWindow() {
     title: 'KAINOapp — Кабінет студента КАИ',
     icon: path.join(__dirname, 'assets/icon.png'),
     webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
+      nodeIntegration: true,
+      contextIsolation: false,
       webSecurity: false,
     },
     backgroundColor: '#0f172a',
   });
 
-  // Загружаем локальный сервер
-  mainWindow.loadURL('http://localhost:3000');
+  const distHtmlPath = path.join(__dirname, 'dist/index.html');
+  if (fs.existsSync(distHtmlPath)) {
+    console.log(`[ELECTRON] Loading local HTML bundle: ${distHtmlPath}`);
+    mainWindow.loadFile(distHtmlPath);
+  } else {
+    console.log('[ELECTRON] Fallback loading http://localhost:3000');
+    mainWindow.loadURL('http://localhost:3000');
+  }
 
   // Скрытие в трей при закрытии окна
   mainWindow.on('close', (event) => {
@@ -98,10 +105,8 @@ function createTray() {
 
 app.whenReady().then(() => {
   startEmbeddedServer();
-  setTimeout(() => {
-    createWindow();
-    createTray();
-  }, 1000);
+  createWindow();
+  createTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
