@@ -10,7 +10,6 @@ import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { SessionScreen } from './src/screens/SessionScreen';
 import { ServicesScreen } from './src/screens/ServicesScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
-import { SettingsScreen } from './src/screens/SettingsScreen';
 
 type Tab = 'schedule' | 'session' | 'services' | 'profile';
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -52,16 +51,14 @@ export default function App() {
   };
 
   const handleApplyUpdate = async () => {
+    if (!updateInfo) return;
     setUpdating(true);
     try {
-      const ok = await UpdateService.performUpdate();
-      setUpdating(false);
-      if (ok) {
-        Alert.alert('Оновлено! 🚀', 'Додаток KAINOapp успішно оновлено з GitHub!');
-      }
+      await UpdateService.performUpdate(updateInfo);
     } catch (e: any) {
+      Alert.alert('Помилка оновлення', e.message || 'Не вдалося завантажити оновлення');
+    } finally {
       setUpdating(false);
-      Alert.alert('Помилка оновлення', e.message || 'Не вдалося виконати оновлення');
     }
   };
 
@@ -130,9 +127,9 @@ export default function App() {
       {updateInfo && updateInfo.updateAvailable && (
         <View style={styles.updateBanner}>
           <View style={styles.updateBannerTextCol}>
-            <Text style={styles.updateBannerTitle}>🚀 Доступне нове оновлення!</Text>
+            <Text style={styles.updateBannerTitle}>✨ Доступна версія v{updateInfo.latestVersion}!</Text>
             <Text style={styles.updateBannerSubtitle}>
-              Вийшла нова версія KAINOapp на GitHub. Натисніть для миттєвого оновлення.
+              Нове оновлення з покращеннями розкладу.
             </Text>
           </View>
           <TouchableOpacity
@@ -143,7 +140,7 @@ export default function App() {
             {updating ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.updateBannerBtnText}>Оновити зараз</Text>
+              <Text style={styles.updateBannerBtnText}>⚡ Оновити в 1 клік</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -243,7 +240,7 @@ const styles = StyleSheet.create({
   },
   updateBannerTextCol: {
     flex: 1,
-    paddingRight: 10,
+    marginRight: 10,
   },
   updateBannerTitle: {
     color: '#ffffff',
@@ -292,8 +289,8 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   navLabel: {
-    fontSize: 11,
     color: '#64748b',
+    fontSize: 11,
     fontWeight: '600',
   },
   navLabelActive: {

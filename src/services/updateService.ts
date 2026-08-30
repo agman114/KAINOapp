@@ -5,46 +5,59 @@ export interface UpdateInfo {
   currentVersion: string;
   latestVersion: string;
   updateAvailable: boolean;
-  localHash?: string;
-  remoteHash?: string;
   githubUrl: string;
+  downloadUrl?: string;
+  releaseNotes?: string;
 }
+
+const CURRENT_VERSION = '1.0.1';
 
 export const UpdateService = {
   /**
-   * Проверка доступности нового обновления с GitHub
+   * Проверка наличия свежего релиза на GitHub Releases
    */
   async checkForUpdates(): Promise<UpdateInfo | null> {
     try {
-      const resp = await axios.get('/api/system/check-update', { timeout: 4000 });
-      if (resp.data) {
-        return resp.data as UpdateInfo;
+      const ghResp = await axios.get('https://api.github.com/repos/agman114/KAINOapp/releases/latest', {
+        timeout: 6000,
+      });
+
+      if (ghResp.data && ghResp.data.tag_name) {
+        const latestVer = ghResp.data.tag_name.replace(/^v/, '');
+        const updateAvailable = latestVer !== CURRENT_VERSION;
+        
+        let downloadUrl = ghResp.data.html_url;
+        if (ghResp.data.assets && Array.isArray(ghResp.data.assets)) {
+          const apkAsset = ghResp.data.assets.find((a: any) => a.name.endsWith('.apk'));
+          const exeAsset = ghResp.data.assets.find((a: any) => a.name.endsWith('.exe') || a.name.endsWith('.zip'));
+          if (Platform.OS === 'android' && apkAsset) {
+            downloadUrl = apkAsset.browser_download_url;
+          } else if (exeAsset) {
+            downloadUrl = exeAsset.browser_download_url;
+          }
+        }
+
+        return {
+          currentVersion: CURRENT_VERSION,
+          latestVersion: latestVer,
+          updateAvailable,
+          githubUrl: ghResp.data.html_url,
+          downloadUrl,
+          releaseNotes: ghResp.data.body || 'Нове оновлення KAINOapp!',
+        };
       }
     } catch (e) {
-      console.log('[UpdateService] Offline or standalone mode check info');
+      console.log('[UpdateService] GitHub releases check failed (offline or rate limit)');
     }
     return null;
   },
 
   /**
-   * Выполнение автоматического обновления
+   * Запуск автоматического обновления в 1 клик
    */
-  async performUpdate(): Promise<boolean> {
-    try {
-      // На ПК / Декстоп: Запускаем авто-пулл из гитхаба и сборку
-      const resp = await axios.post('/api/system/do-update', {}, { timeout: 60000 });
-      if (resp.data && resp.data.success) {
-        if (typeof window !== 'undefined' && window.location) {
-          window.location.reload();
-        }
-        return true;
-      }
-    } catch (e) {
-      console.error('[UpdateService] PC git update failed, opening GitHub releases fallback', e);
-    }
-
-    // На телефоне / Смартфоне: Открываем страницу релизов GitHub для скачивания нового APK
-    Linking.openURL('https://github.com/agman114/KAINOapp/releases');
-    return false;
+  async performUpdate(info: UpdateInfo): Promise<void> {
+    const targetUrl = info.downloadUrl || info.githubUrl || 'https://github.com/agman114/KAINOapp/releases/latest';
+    console.log('[UpdateService] Performing 1-Click Update redirect to:', targetUrl);
+    Linking.openURL(targetUrl);
   }
 };

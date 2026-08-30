@@ -1,7 +1,7 @@
 {
   "name": "kainoapp",
   "productName": "KAINOapp",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "build": "npx expo export --platform web && node fixDist.js",
     "desktop": "electron electron-main.js",
-    "build:exe": "electron-builder --win nsis"
+    "build:exe": "electron-builder --win nsis",
+    "release": "node scripts/release.js"
   },
   "build": {
     "appId": "com.kainoapp.student",
