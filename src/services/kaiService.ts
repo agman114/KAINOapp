@@ -65,64 +65,59 @@ export class KaiService {
   }
 
   /**
-   * Синоним для авто-синхронизации, вызваемой из App.tsx
+   * Синоним для авто-синхронизации, вызываемой из App.tsx
    */
   static async autoSyncSchedule(): Promise<{ profile: StudentProfile; schedule: DaySchedule[] } | null> {
     return await this.refreshSchedule();
   }
 
   /**
-   * Расчет текущей или следующей пары по времени
+   * Расчет текущей пары для отображения плавающего баннера на ScheduleScreen
    */
-  static getCurrentLesson(schedule: DaySchedule[]): { currentLesson: Lesson | null; nextLesson: Lesson | null; isBreak: boolean } | null {
+  static getCurrentLesson(schedule: DaySchedule[]): { lesson: Lesson; progress: number; remainingMinutes: number } | null {
     if (!schedule || schedule.length === 0) return null;
 
-    const now = new Date();
-    const currentDayOfWeek = now.getDay(); // 0 - Sun, 1 - Mon, ...
-    const dayOfWeek = currentDayOfWeek === 0 ? 7 : currentDayOfWeek;
+    try {
+      const now = new Date();
+      const currentDayOfWeek = now.getDay(); // 0 - Sun, 1 - Mon...
+      const dayOfWeek = currentDayOfWeek === 0 ? 7 : currentDayOfWeek;
 
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const currentTotalMins = hours * 60 + minutes;
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const currentTotalMins = hours * 60 + minutes;
 
-    const todayObj = schedule.find(s => s.dayOfWeek === dayOfWeek);
-    if (!todayObj || !todayObj.lessons || todayObj.lessons.length === 0) {
-      return null;
-    }
-
-    let currentLesson: Lesson | null = null;
-    let nextLesson: Lesson | null = null;
-    let isBreak = false;
-
-    for (let i = 0; i < todayObj.lessons.length; i++) {
-      const lesson = todayObj.lessons[i];
-      const [hStart, mStart] = lesson.timeStart.split(':').map(Number);
-      const [hEnd, mEnd] = lesson.timeEnd.split(':').map(Number);
-      const startMins = hStart * 60 + mStart;
-      const endMins = hEnd * 60 + mEnd;
-
-      if (currentTotalMins >= startMins && currentTotalMins <= endMins) {
-        currentLesson = lesson;
-        if (i + 1 < todayObj.lessons.length) {
-          nextLesson = todayObj.lessons[i + 1];
-        }
-        break;
+      const todayObj = schedule.find(s => s.dayOfWeek === dayOfWeek);
+      if (!todayObj || !todayObj.lessons || todayObj.lessons.length === 0) {
+        return null;
       }
 
-      if (currentTotalMins < startMins) {
-        nextLesson = lesson;
-        if (i > 0) {
-          const prevLesson = todayObj.lessons[i - 1];
-          const [pHend, pMend] = prevLesson.timeEnd.split(':').map(Number);
-          const prevEndMins = pHend * 60 + pMend;
-          if (currentTotalMins >= prevEndMins) {
-            isBreak = true;
-          }
+      for (const lesson of todayObj.lessons) {
+        if (!lesson || !lesson.timeStart || !lesson.timeEnd) continue;
+        const [hStart, mStart] = lesson.timeStart.split(':').map(Number);
+        const [hEnd, mEnd] = lesson.timeEnd.split(':').map(Number);
+        
+        if (isNaN(hStart) || isNaN(mStart) || isNaN(hEnd) || isNaN(mEnd)) continue;
+
+        const startMins = hStart * 60 + mStart;
+        const endMins = hEnd * 60 + mEnd;
+
+        if (currentTotalMins >= startMins && currentTotalMins <= endMins) {
+          const totalDuration = Math.max(1, endMins - startMins);
+          const elapsed = currentTotalMins - startMins;
+          const progress = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
+          const remainingMinutes = Math.max(0, endMins - currentTotalMins);
+
+          return {
+            lesson,
+            progress,
+            remainingMinutes,
+          };
         }
-        break;
       }
+    } catch (e) {
+      console.error('[KAI SERVICE] getCurrentLesson calculation error:', e);
     }
 
-    return { currentLesson, nextLesson, isBreak };
+    return null;
   }
 }
