@@ -329,6 +329,14 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log('[SERVER] Port 3000 is already in use by another instance. Reusing server.');
+  } else {
+    console.error('[SERVER ERROR]:', err);
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`KAINOapp Server reading 100% REAL PORTAL ENDPOINTS at http://localhost:3000/`);
 });

@@ -1,20 +1,16 @@
 const { app, BrowserWindow, Tray, Menu, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { fork } = require('child_process');
 
 let mainWindow;
 let tray;
-let serverProcess;
 
-function startEmbeddedServer() {
-  try {
-    const serverPath = path.join(__dirname, 'server.js');
-    console.log(`[ELECTRON] Starting embedded server.js from ${serverPath}...`);
-    serverProcess = fork(serverPath);
-  } catch (e) {
-    console.error('[ELECTRON] Failed to start embedded server:', e);
-  }
+// Start embedded server.js directly inside Electron main process
+try {
+  require('./server.js');
+  console.log('[ELECTRON MAIN] Embedded server.js initialized successfully.');
+} catch (e) {
+  console.error('[ELECTRON MAIN] Failed to initialize embedded server.js:', e);
 }
 
 function createWindow() {
@@ -33,14 +29,8 @@ function createWindow() {
     backgroundColor: '#0f172a',
   });
 
-  const distHtmlPath = path.join(__dirname, 'dist/index.html');
-  if (fs.existsSync(distHtmlPath)) {
-    console.log(`[ELECTRON] Loading local HTML bundle: ${distHtmlPath}`);
-    mainWindow.loadFile(distHtmlPath);
-  } else {
-    console.log('[ELECTRON] Fallback loading http://localhost:3000');
-    mainWindow.loadURL('http://localhost:3000');
-  }
+  // Загружаем локальный сервер
+  mainWindow.loadURL('http://localhost:3000');
 
   // Скрытие в трей при закрытии окна
   mainWindow.on('close', (event) => {
@@ -104,7 +94,6 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
-  startEmbeddedServer();
   createWindow();
   createTray();
 
@@ -113,10 +102,4 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
-});
-
-app.on('will-quit', () => {
-  if (serverProcess) {
-    serverProcess.kill();
-  }
 });

@@ -15,6 +15,7 @@
   "build": {
     "appId": "com.kainoapp.student",
     "productName": "KAINOapp",
+    "asar": false,
     "win": {
       "target": "nsis"
     }
