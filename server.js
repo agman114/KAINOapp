@@ -6,6 +6,7 @@ const { scrapeKaiSchedule } = require('./playwrightScraper');
 
 const PORT = 3000;
 const DIST = path.join(__dirname, 'dist');
+const LOCAL_DATA_FILE = path.join(__dirname, 'local_user_data.json');
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -41,7 +42,6 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
         timeEnd = `${timeNumbers[3]}:${timeNumbers[4]}`;
       }
 
-      // Каждый столбец 1..6 соответствует дню недели (1 = Пн, 2 = Вт, ..., 6 = Сб)
       $(rowEl).children('.grid-cell').slice(1, 7).each((colIdx, cellEl) => {
         const dayOfWeek = colIdx + 1;
         const pairCards = $(cellEl).find('.pair-card');
@@ -62,7 +62,6 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
 
           const dayObj = daySchedules.find(ds => ds.dayOfWeek === dayOfWeek);
           if (dayObj) {
-            // Исключаем полные дубликаты пар на одно и то же время
             const isDuplicate = dayObj.lessons.some(
               l => l.subject === subject && l.timeStart === timeStart && l.type === type && l.weekType === weekTypeStr
             );
@@ -91,7 +90,6 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
   extractWeek(htmlWeek1, 'odd');  // 1-й тиждень
   extractWeek(htmlWeek2, 'even'); // 2-й тиждень
 
-  // Хронологическая сортировка пар внутри каждого дня
   daySchedules.forEach(ds => {
     ds.lessons.sort((a, b) => {
       const [h1, m1] = a.timeStart.split(':').map(Number);
@@ -99,9 +97,6 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
       return (h1 * 60 + m1) - (h2 * 60 + m2);
     });
   });
-
-  const total = daySchedules.reduce((acc, d) => acc + d.lessons.length, 0);
-  console.log(`[CHEERIO PARSER] Total extracted student lessons by day & time: ${total}`);
 
   return daySchedules;
 }
@@ -121,8 +116,6 @@ function parseProfilePage(html, fallbackUsername) {
     if (groupText) groupName = groupText;
   }
 
-  console.log(`[CHEERIO PARSER] Profile Name="${fullName}", Group="${groupName}"`);
-
   return {
     fullName,
     groupName,
@@ -135,26 +128,59 @@ function parseProfilePage(html, fallbackUsername) {
 }
 
 const server = http.createServer(async (req, res) => {
+  // Эндпоинты незгораемого локального хранения
+  if (req.url === '/api/storage/save' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        fs.writeFileSync(LOCAL_DATA_FILE, body, 'utf-8');
+        console.log('[PERMANENT STORAGE] Saved student data permanently to local_user_data.json');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.url === '/api/storage/load' && req.method === 'GET') {
+    try {
+      if (fs.existsSync(LOCAL_DATA_FILE)) {
+        const data = fs.readFileSync(LOCAL_DATA_FILE, 'utf-8');
+        console.log('[PERMANENT STORAGE] Loaded permanent student data from local_user_data.json');
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(data);
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ profile: null, schedule: [] }));
+      }
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+    return;
+  }
+
   if (req.url === '/api/kai/login' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
-      console.log('\n------------------- [SERVER API REQUEST START] -------------------');
       try {
         const { username, password } = JSON.parse(body);
-        console.log(`[SERVER LOG] Received POST /api/kai/login for user: "${username}"`);
-
         const pwResult = await scrapeKaiSchedule(username, password);
         const profile = parseProfilePage(pwResult.contentProfile, username);
         const schedule = parseScheduleWithCheerio(pwResult.contentWeek1, pwResult.contentWeek2);
 
-        console.log('------------------- [SERVER API REQUEST END SUCCESS] -------------------\n');
+        // Автоматически бэкапим в незгораемый локальный файл на диске
+        fs.writeFileSync(LOCAL_DATA_FILE, JSON.stringify({ profile, schedule }), 'utf-8');
 
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: true, profile, schedule }));
       } catch (err) {
         console.error('[SERVER LOG API ERROR]:', err);
-        console.log('------------------- [SERVER API REQUEST END ERROR] -------------------\n');
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
       }
@@ -182,5 +208,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Server running at http://localhost:${PORT}/`);
+  console.log(`KAINOapp Server running with Permanent Disk Storage at http://localhost:${PORT}/`);
 });
