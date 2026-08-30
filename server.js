@@ -2,11 +2,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
+const { exec } = require('child_process');
 const { scrapeKaiSchedule } = require('./playwrightScraper');
 
 const PORT = 3000;
 const DIST = path.join(__dirname, 'dist');
 const LOCAL_DATA_FILE = path.join(__dirname, 'local_user_data.json');
+const PACKAGE_JSON_PATH = path.join(__dirname, 'package.json');
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -17,9 +19,15 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
-/**
- * Точный изоляционный парсер расписания КАИ по контейнерам .schedule-week-pane
- */
+function getLocalVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf-8'));
+    return pkg.version || '1.0.0';
+  } catch {
+    return '1.0.0';
+  }
+}
+
 function parseScheduleWithCheerio(html) {
   console.log('[CHEERIO PARSER] Scoped parsing of all semester week panes (.schedule-week-pane)...');
   const daySchedules = [];
@@ -28,13 +36,11 @@ function parseScheduleWithCheerio(html) {
   if (!html) return daySchedules;
   const $ = cheerio.load(html);
 
-  // Каждая неделя в HTML имеет собственный контейнер .schedule-week-pane
   $('.schedule-week-pane').each((paneIdx, paneEl) => {
     const $pane = $(paneEl);
     const weekNum = paneIdx + 1;
     const weekLabel = $pane.attr('data-week-label') || `${weekNum} тиждень`;
 
-    // Точные даты для столбцов текущей недели (31.08, 01.09, etc.)
     const colDates = [];
     $pane.find('.grid-header-row .grid-cell').slice(0, 6).each((idx, cell) => {
       const text = $(cell).text().replace(/\s+/g, ' ').trim();
@@ -50,7 +56,6 @@ function parseScheduleWithCheerio(html) {
       lessons: [],
     }));
 
-    // Итерируемся ТОЛЬКО по строкам .grid-row внутри ДАННОГО .schedule-week-pane!
     $pane.find('.grid-row').each((rowIdx, rowEl) => {
       const timeCell = $(rowEl).find('.grid-cell').eq(0);
       const timeText = timeCell.text().replace(/\s+/g, ' ').trim();
@@ -103,7 +108,6 @@ function parseScheduleWithCheerio(html) {
       });
     });
 
-    // Сортировка по времени внутри дня
     weekDaySchedules.forEach(ds => {
       ds.lessons.sort((a, b) => {
         const [h1, m1] = a.timeStart.split(':').map(Number);
@@ -113,9 +117,6 @@ function parseScheduleWithCheerio(html) {
       daySchedules.push(ds);
     });
   });
-
-  const total = daySchedules.reduce((acc, d) => acc + d.lessons.length, 0);
-  console.log(`[CHEERIO PARSER] Successfully parsed ${daySchedules.length} day-weeks with total ${total} lessons!`);
 
   return daySchedules;
 }
@@ -147,6 +148,56 @@ function parseProfilePage(html, fallbackUsername) {
 }
 
 const server = http.createServer(async (req, res) => {
+  // Эндпоинты проверки и установки обновлений приложения (PC & Mobile)
+  if (req.url === '/api/system/check-update' && req.method === 'GET') {
+    const currentVer = getLocalVersion();
+    
+    // Выполняем git fetch origin main для проверки новых коммитов на GitHub
+    exec('git fetch origin main && git rev-parse HEAD && git rev-parse origin/main', (err, stdout) => {
+      let updateAvailable = false;
+      let localHash = '';
+      let remoteHash = '';
+
+      if (!err && stdout) {
+        const lines = stdout.trim().split('\n');
+        if (lines.length >= 2) {
+          localHash = lines[0].trim();
+          remoteHash = lines[1].trim();
+          if (localHash && remoteHash && localHash !== remoteHash) {
+            updateAvailable = true;
+          }
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        currentVersion: currentVer,
+        latestVersion: updateAvailable ? `${currentVer}-new` : currentVer,
+        updateAvailable,
+        localHash,
+        remoteHash,
+        githubUrl: 'https://github.com/agman114/KAINOapp/releases',
+      }));
+    });
+    return;
+  }
+
+  if (req.url === '/api/system/do-update' && req.method === 'POST') {
+    console.log('[AUTO-UPDATER] Executing git pull origin main and bundle rebuild...');
+    exec('git pull origin main && npx expo export --platform web', (err, stdout, stderr) => {
+      if (err) {
+        console.error('[AUTO-UPDATER ERROR]:', stderr || err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: stderr || err.message }));
+      } else {
+        console.log('[AUTO-UPDATER SUCCESS]: App updated to latest GitHub commit!');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Додаток успішно оновлено з GitHub!' }));
+      }
+    });
+    return;
+  }
+
   if (req.url === '/api/storage/save' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -223,5 +274,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Scoped Week-Pane Server running at http://localhost:${PORT}/`);
+  console.log(`KAINOapp Server with Git Auto-Updater running at http://localhost:${PORT}/`);
 });

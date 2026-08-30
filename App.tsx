@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, StatusBar, ActivityIndicator, Alert } from 'react-native';
 import { StudentProfile, DaySchedule } from './src/types/kai';
 import { KaiService } from './src/services/kaiService';
 import { StorageService } from './src/services/storage';
 import { NotificationService } from './src/services/notificationService';
+import { UpdateService, UpdateInfo } from './src/services/updateService';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { SessionScreen } from './src/screens/SessionScreen';
@@ -18,6 +19,10 @@ export default function App() {
   const [schedule, setSchedule] = useState<DaySchedule[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('schedule');
   const [loading, setLoading] = useState(true);
+
+  // Состояние обновления приложения
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updating, setUpdating] = useState<boolean>(false);
 
   const performAutoSync = async (notifyUser: boolean = false) => {
     try {
@@ -38,6 +43,27 @@ export default function App() {
     }
   };
 
+  const checkAppUpdate = async () => {
+    const info = await UpdateService.checkForUpdates();
+    if (info && info.updateAvailable) {
+      setUpdateInfo(info);
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    setUpdating(true);
+    try {
+      const ok = await UpdateService.performUpdate();
+      setUpdating(false);
+      if (ok) {
+        Alert.alert('Оновлено! 🚀', 'Додаток KAINOapp успішно оновлено з GitHub!');
+      }
+    } catch (e: any) {
+      setUpdating(false);
+      Alert.alert('Помилка оновлення', e.message || 'Не вдалося виконати оновлення');
+    }
+  };
+
   useEffect(() => {
     async function initApp() {
       try {
@@ -54,6 +80,9 @@ export default function App() {
         if (storedProfile && storedProfile.isAuthenticated) {
           performAutoSync(false);
         }
+
+        // 3. ПРОВЕРКА ОБНОВЛЕНИЙ С GITHUB
+        checkAppUpdate();
       } catch (e) {
         console.error('Initialization error:', e);
       } finally {
@@ -63,10 +92,11 @@ export default function App() {
 
     initApp();
 
-    // 3. АВТОМАТИЧЕСКАЯ ФОНОВАЯ СИНХРОНИЗАЦИЯ РАЗ В ЧАС (60 минут)
+    // 4. АВТОМАТИЧЕСКАЯ ФОНОВАЯ СИНХРОНИЗАЦИЯ РАЗ В ЧАС (60 минут)
     const hourlyInterval = setInterval(() => {
-      console.log('[APP HOURLY TIMER] Running 1-hour periodic schedule sync...');
+      console.log('[APP HOURLY TIMER] Running 1-hour periodic schedule sync & update check...');
       performAutoSync(true);
+      checkAppUpdate();
     }, ONE_HOUR_MS);
 
     return () => clearInterval(hourlyInterval);
@@ -99,6 +129,29 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       
+      {/* Баннер доступности нового обновления с GitHub */}
+      {updateInfo && updateInfo.updateAvailable && (
+        <View style={styles.updateBanner}>
+          <View style={styles.updateBannerTextCol}>
+            <Text style={styles.updateBannerTitle}>🚀 Доступне нове оновлення!</Text>
+            <Text style={styles.updateBannerSubtitle}>
+              Вийшла нова версія KAINOapp на GitHub. Натисніть для миттєвого оновлення.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.updateBannerBtn}
+            onPress={handleApplyUpdate}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.updateBannerBtnText}>Оновити зараз</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.mainContent}>
         {activeTab === 'schedule' && (
           <ScheduleScreen
@@ -182,6 +235,41 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 16,
     fontWeight: '600',
+  },
+  updateBanner: {
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  updateBannerTextCol: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  updateBannerTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  updateBannerSubtitle: {
+    color: '#e0f2fe',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  updateBannerBtn: {
+    backgroundColor: '#0369a1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+  },
+  updateBannerBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   mainContent: {
     flex: 1,
