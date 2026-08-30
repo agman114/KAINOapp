@@ -18,26 +18,30 @@ const MIME_TYPES = {
 };
 
 /**
- * Парсер расписания КАИ по точным календарным датам и неделям
+ * Точный изоляционный парсер расписания КАИ по контейнерам .schedule-week-pane
  */
-function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
-  console.log('[CHEERIO PARSER] Parsing schedule by calendar dates & study weeks...');
+function parseScheduleWithCheerio(html) {
+  console.log('[CHEERIO PARSER] Scoped parsing of all semester week panes (.schedule-week-pane)...');
   const daySchedules = [];
   const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
 
-  function extractWeek(html, weekNum, weekLabel) {
-    if (!html) return;
-    const $ = cheerio.load(html);
+  if (!html) return daySchedules;
+  const $ = cheerio.load(html);
 
-    // Извлекаем точные календарные даты столбцов (31.08, 01.09, etc.)
+  // Каждая неделя в HTML имеет собственный контейнер .schedule-week-pane
+  $('.schedule-week-pane').each((paneIdx, paneEl) => {
+    const $pane = $(paneEl);
+    const weekNum = paneIdx + 1;
+    const weekLabel = $pane.attr('data-week-label') || `${weekNum} тиждень`;
+
+    // Точные даты для столбцов текущей недели (31.08, 01.09, etc.)
     const colDates = [];
-    $('.grid-header-row .grid-cell').slice(0, 6).each((idx, el) => {
-      const text = $(el).find('span').text().trim() || $(el).text().replace(/\s+/g, ' ').trim();
+    $pane.find('.grid-header-row .grid-cell').slice(0, 6).each((idx, cell) => {
+      const text = $(cell).text().replace(/\s+/g, ' ').trim();
       const dateMatch = text.match(/(\d{2}\.\d{2})/);
       colDates.push(dateMatch ? dateMatch[1] : '');
     });
 
-    // Создаем структуру дней для этой недели
     const weekDaySchedules = days.map((dayName, dIdx) => ({
       dayOfWeek: dIdx + 1,
       dayName,
@@ -46,7 +50,8 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
       lessons: [],
     }));
 
-    $('.grid-row').each((rowIdx, rowEl) => {
+    // Итерируемся ТОЛЬКО по строкам .grid-row внутри ДАННОГО .schedule-week-pane!
+    $pane.find('.grid-row').each((rowIdx, rowEl) => {
       const timeCell = $(rowEl).find('.grid-cell').eq(0);
       const timeText = timeCell.text().replace(/\s+/g, ' ').trim();
       const timeNumbers = timeText.match(/(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})/);
@@ -78,33 +83,27 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
 
           const dayObj = weekDaySchedules.find(ds => ds.dayOfWeek === dayOfWeek);
           if (dayObj) {
-            const isDuplicate = dayObj.lessons.some(
-              l => l.subject === subject && l.timeStart === timeStart && l.type === type
-            );
-
-            if (!isDuplicate) {
-              dayObj.lessons.push({
-                id: `${dayOfWeek}-w${weekNum}-${rowIdx}-${cardIdx}`,
-                subject,
-                type,
-                timeStart,
-                timeEnd,
-                teacher: teacher || 'Викладач КАИ',
-                room: room || 'Аудиторія',
-                building: 'КАИ',
-                weekNumber: weekNum,
-                weekName: weekLabel,
-                dayOfWeek,
-                dateStr: dayObj.dateStr,
-                onlineUrl,
-              });
-            }
+            dayObj.lessons.push({
+              id: `${dayOfWeek}-w${weekNum}-${rowIdx}-${cardIdx}`,
+              subject,
+              type,
+              timeStart,
+              timeEnd,
+              teacher: teacher || 'Викладач КАИ',
+              room: room || 'Аудиторія',
+              building: 'КАИ',
+              weekNumber: weekNum,
+              weekName: weekLabel,
+              dayOfWeek,
+              dateStr: dayObj.dateStr,
+              onlineUrl,
+            });
           }
         });
       });
     });
 
-    // Сортировка по времени
+    // Сортировка по времени внутри дня
     weekDaySchedules.forEach(ds => {
       ds.lessons.sort((a, b) => {
         const [h1, m1] = a.timeStart.split(':').map(Number);
@@ -113,13 +112,10 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
       });
       daySchedules.push(ds);
     });
-  }
-
-  extractWeek(htmlWeek1, 1, '1 тиждень');
-  extractWeek(htmlWeek2, 2, '2 тиждень');
+  });
 
   const total = daySchedules.reduce((acc, d) => acc + d.lessons.length, 0);
-  console.log(`[CHEERIO PARSER] Total parsed lessons linked to dates: ${total}`);
+  console.log(`[CHEERIO PARSER] Successfully parsed ${daySchedules.length} day-weeks with total ${total} lessons!`);
 
   return daySchedules;
 }
@@ -192,7 +188,7 @@ const server = http.createServer(async (req, res) => {
         const { username, password } = JSON.parse(body);
         const pwResult = await scrapeKaiSchedule(username, password);
         const profile = parseProfilePage(pwResult.contentProfile, username);
-        const schedule = parseScheduleWithCheerio(pwResult.contentWeek1, pwResult.contentWeek2);
+        const schedule = parseScheduleWithCheerio(pwResult.contentWeek1 || pwResult.contentWeek2);
 
         fs.writeFileSync(LOCAL_DATA_FILE, JSON.stringify({ profile, schedule }), 'utf-8');
 
@@ -227,5 +223,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Date-Linked Server running at http://localhost:${PORT}/`);
+  console.log(`KAINOapp Scoped Week-Pane Server running at http://localhost:${PORT}/`);
 });
