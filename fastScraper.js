@@ -1,7 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
-const path = path = require('path');
+const path = require('path');
 
 const DEBUG_DIR = path.join(__dirname, 'debug_output');
 if (!fs.existsSync(DEBUG_DIR)) {
