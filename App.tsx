@@ -11,6 +11,7 @@ import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
 type Tab = 'schedule' | 'session' | 'profile' | 'settings';
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 export default function App() {
   const [student, setStudent] = useState<StudentProfile | null>(null);
@@ -18,24 +19,40 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('schedule');
   const [loading, setLoading] = useState(true);
 
+  const performAutoSync = async (notifyUser: boolean = false) => {
+    try {
+      console.log('[APP AUTO-SYNC] Triggering automated background sync...');
+      const freshData = await KaiService.autoSyncSchedule();
+      if (freshData) {
+        setStudent(freshData.profile);
+        setSchedule(freshData.schedule);
+        if (notifyUser) {
+          NotificationService.sendNotification(
+            'Оновлення розкладу 🔔',
+            'Розклад занять з cabinet.kai.edu.ua успішно оновлено!'
+          );
+        }
+      }
+    } catch (e) {
+      console.log('[APP AUTO-SYNC INFO]:', e);
+    }
+  };
+
   useEffect(() => {
     async function initApp() {
       try {
         await NotificationService.requestPermission();
+        
+        // 1. Мгновенная загрузка кэшированного расписания из незгораемой памяти
         const storedProfile = await StorageService.getStudentProfile();
         const storedSchedule = await StorageService.getSchedule();
         
         setStudent(storedProfile);
         setSchedule(storedSchedule);
 
-        // Тихий фоновый забор свежего расписания с сайта КАИ при старте
+        // 2. АВТО-ЗАГРУЗКА ПРИ КАЖДОМ ВХОДЕ В ПРИЛОЖЕНИЕ
         if (storedProfile && storedProfile.isAuthenticated) {
-          KaiService.autoSyncSchedule().then(freshData => {
-            if (freshData) {
-              setStudent(freshData.profile);
-              setSchedule(freshData.schedule);
-            }
-          }).catch(e => console.log('Silent auto-sync background info:', e));
+          performAutoSync(false);
         }
       } catch (e) {
         console.error('Initialization error:', e);
@@ -43,7 +60,16 @@ export default function App() {
         setLoading(false);
       }
     }
+
     initApp();
+
+    // 3. АВТОМАТИЧЕСКАЯ ФОНОВАЯ СИНХРОНИЗАЦИЯ РАЗ В ЧАС (60 минут)
+    const hourlyInterval = setInterval(() => {
+      console.log('[APP HOURLY TIMER] Running 1-hour periodic schedule sync...');
+      performAutoSync(true);
+    }, ONE_HOUR_MS);
+
+    return () => clearInterval(hourlyInterval);
   }, []);
 
   const handleLoginSuccess = async (profile: StudentProfile, liveSchedule: DaySchedule[]) => {
@@ -59,6 +85,7 @@ export default function App() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
+        <Text style={styles.loadingIcon}>🎓</Text>
         <Text style={styles.loadingText}>Завантаження KAINOapp...</Text>
       </View>
     );
@@ -72,66 +99,65 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       
-      <View style={styles.mainContainer}>
-        {/* Main Active Screen */}
-        <View style={styles.screenContainer}>
-          {activeTab === 'schedule' && (
-            <ScheduleScreen
-              schedule={schedule}
-              student={student}
-              onUpdateSchedule={(newProfile, newSchedule) => {
-                setStudent(newProfile);
-                setSchedule(newSchedule);
-              }}
-            />
-          )}
-          {activeTab === 'session' && <SessionScreen />}
-          {activeTab === 'profile' && <ProfileScreen student={student} />}
-          {activeTab === 'settings' && <SettingsScreen onLogout={handleLogout} />}
-        </View>
+      <View style={styles.mainContent}>
+        {activeTab === 'schedule' && (
+          <ScheduleScreen
+            schedule={schedule}
+            student={student}
+            onUpdateSchedule={(p, s) => {
+              setStudent(p);
+              setSchedule(s);
+            }}
+          />
+        )}
+        {activeTab === 'session' && <SessionScreen />}
+        {activeTab === 'profile' && (
+          <ProfileScreen student={student} onLogout={handleLogout} />
+        )}
+        {activeTab === 'settings' && <SettingsScreen />}
+      </View>
 
-        {/* Bottom Tab Bar (Responsive PC & Mobile) */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'schedule' && styles.tabItemActive]}
-            onPress={() => setActiveTab('schedule')}
-          >
-            <Text style={styles.tabIcon}>📅</Text>
-            <Text style={[styles.tabLabel, activeTab === 'schedule' && styles.tabLabelActive]}>
-              Розклад
-            </Text>
-          </TouchableOpacity>
+      {/* Навигационная панель */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={[styles.navItem, activeTab === 'schedule' && styles.navItemActive]}
+          onPress={() => setActiveTab('schedule')}
+        >
+          <Text style={styles.navIcon}>📅</Text>
+          <Text style={[styles.navLabel, activeTab === 'schedule' && styles.navLabelActive]}>
+            Розклад
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'session' && styles.tabItemActive]}
-            onPress={() => setActiveTab('session')}
-          >
-            <Text style={styles.tabIcon}>📊</Text>
-            <Text style={[styles.tabLabel, activeTab === 'session' && styles.tabLabelActive]}>
-              Сесія
-            </Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navItem, activeTab === 'session' && styles.navItemActive]}
+          onPress={() => setActiveTab('session')}
+        >
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={[styles.navLabel, activeTab === 'session' && styles.navLabelActive]}>
+            Сесія
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'profile' && styles.tabItemActive]}
-            onPress={() => setActiveTab('profile')}
-          >
-            <Text style={styles.tabIcon}>👤</Text>
-            <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>
-              Профіль
-            </Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navItem, activeTab === 'profile' && styles.navItemActive]}
+          onPress={() => setActiveTab('profile')}
+        >
+          <Text style={styles.navIcon}>👤</Text>
+          <Text style={[styles.navLabel, activeTab === 'profile' && styles.navLabelActive]}>
+            Профіль
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'settings' && styles.tabItemActive]}
-            onPress={() => setActiveTab('settings')}
-          >
-            <Text style={styles.tabIcon}>⚙️</Text>
-            <Text style={[styles.tabLabel, activeTab === 'settings' && styles.tabLabelActive]}>
-              Налаштування
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
+          onPress={() => setActiveTab('settings')}
+        >
+          <Text style={styles.navIcon}>⚙️</Text>
+          <Text style={[styles.navLabel, activeTab === 'settings' && styles.navLabelActive]}>
+            Налаштування
+          </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -148,50 +174,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
   loadingText: {
-    color: '#38bdf8',
+    color: '#94a3b8',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  mainContainer: {
-    flex: 1,
-    maxWidth: 900,
-    width: '100%',
-    alignSelf: 'center',
-    backgroundColor: '#0f172a',
-  },
-  screenContainer: {
+  mainContent: {
     flex: 1,
   },
-  tabBar: {
+  bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#1e293b',
     borderTopWidth: 1,
     borderTopColor: '#334155',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    justifyContent: 'space-around',
+    paddingBottom: 12,
   },
-  tabItem: {
+  navItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 16,
-    borderRadius: 12,
   },
-  tabItemActive: {
-    backgroundColor: '#0369a122',
+  navItemActive: {
+    opacity: 1,
   },
-  tabIcon: {
-    fontSize: 18,
+  navIcon: {
+    fontSize: 20,
     marginBottom: 2,
   },
-  tabLabel: {
+  navLabel: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: '#64748b',
     fontWeight: '600',
   },
-  tabLabelActive: {
+  navLabelActive: {
     color: '#38bdf8',
     fontWeight: '700',
   },
