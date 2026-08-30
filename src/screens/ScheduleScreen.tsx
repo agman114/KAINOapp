@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { DaySchedule, Lesson, StudentProfile } from '../types/kai';
 import { KaiService } from '../services/kaiService';
-import { KaiHtmlParser } from '../services/kaiParser';
 import { StorageService } from '../services/storage';
 
 interface Props {
@@ -26,12 +25,8 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   
-  // Modals
-  const [importModalVisible, setImportModalVisible] = useState<boolean>(false);
-  const [importTab, setImportTab] = useState<'paste' | 'login'>('paste');
-  const [pastedText, setPastedText] = useState<string>('');
-  
-  // Login fields
+  // Login modal
+  const [loginModalVisible, setLoginModalVisible] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -75,33 +70,24 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
     return l.weekNumber === weekFilter;
   });
 
-  const handleParsePastedText = async () => {
-    if (!pastedText.trim()) {
-      Alert.alert('Увага', 'Вставте скопійований текст або HTML сторінки розкладу з cabinet.kai.edu.ua!');
-      return;
+  const handleRefreshClick = async () => {
+    const creds = await StorageService.getCredentials();
+    if (creds && creds.username && creds.password) {
+      setLoading(true);
+      try {
+        const res = await KaiService.login(creds.username, creds.password);
+        setLoading(false);
+        if (onUpdateSchedule) {
+          onUpdateSchedule(res.profile, res.schedule);
+        }
+        Alert.alert('Оновлено! 🔄', 'Розклад успішно оновлено з cabinet.kai.edu.ua!');
+      } catch (e: any) {
+        setLoading(false);
+        Alert.alert('Помилка оновлення', e.message || 'Не вдалося оновити розклад');
+      }
+    } else {
+      setLoginModalVisible(true);
     }
-
-    const parsedSchedule = KaiHtmlParser.parseRawTextOrHtml(pastedText);
-    await StorageService.saveSchedule(parsedSchedule);
-
-    const updatedProfile: StudentProfile = {
-      fullName: student.fullName || 'Студент КАИ',
-      groupName: student.groupName || 'Б-F7-26-1-КС',
-      faculty: student.faculty || 'Факультет КАИ',
-      specialty: 'Інженерія ПЗ',
-      course: 2,
-      educationForm: 'Денна',
-      isAuthenticated: true,
-    };
-    await StorageService.saveStudentProfile(updatedProfile);
-
-    if (onUpdateSchedule) {
-      onUpdateSchedule(updatedProfile, parsedSchedule);
-    }
-
-    setImportModalVisible(false);
-    setPastedText('');
-    Alert.alert('Успіх! 🎉', 'Розклад успішно розпізнано та збережено!');
   };
 
   const handleLiveFetch = async () => {
@@ -114,7 +100,7 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
     try {
       const res = await KaiService.login(username, password);
       setLoading(false);
-      setImportModalVisible(false);
+      setLoginModalVisible(false);
       if (onUpdateSchedule) {
         onUpdateSchedule(res.profile, res.schedule);
       }
@@ -149,9 +135,14 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
           </View>
           <TouchableOpacity
             style={styles.refreshButton}
-            onPress={() => setImportModalVisible(true)}
+            onPress={handleRefreshClick}
+            disabled={loading}
           >
-            <Text style={styles.refreshButtonText}>📥 Завантажити розклад</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.refreshButtonText}>🔄 Оновити розклад</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -177,92 +168,47 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
         </View>
       </View>
 
-      {/* Modal импорта / входа */}
-      <Modal visible={importModalVisible} transparent animationType="fade">
+      {/* Modal авторизации на cabinet.kai.edu.ua */}
+      <Modal visible={loginModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>📥 Імпорт розкладу з КАИ</Text>
-            
-            {/* Переключатель способа */}
-            <View style={styles.modalTabRow}>
-              <TouchableOpacity
-                style={[styles.modalTabBtn, importTab === 'paste' && styles.modalTabBtnActive]}
-                onPress={() => setImportTab('paste')}
-              >
-                <Text style={[styles.modalTabText, importTab === 'paste' && styles.modalTabTextActive]}>
-                  📋 Вставити текст / HTML (100% Гарантія)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalTabBtn, importTab === 'login' && styles.modalTabBtnActive]}
-                onPress={() => setImportTab('login')}
-              >
-                <Text style={[styles.modalTabText, importTab === 'login' && styles.modalTabTextActive]}>
-                  🔑 Живий вхід по паролю
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.modalTitle}>🔑 Авто-синхронізація з КАИ</Text>
+            <Text style={styles.modalSubtitle}>
+              Введіть ваші логін та пароль від cabinet.kai.edu.ua один раз. Вони будуть збережені для автоматичного фонового оновлення расписания:
+            </Text>
 
-            {importTab === 'paste' ? (
-              <View>
-                <Text style={styles.modalSubtitle}>
-                  1. Відкрийте <Text style={{ color: '#38bdf8' }} onPress={() => Linking.openURL('https://cabinet.kai.edu.ua/student/schedule')}>cabinet.kai.edu.ua/student/schedule</Text> у браузері.{'\n'}
-                  2. Виділіть весь текст сторінки (Ctrl+A -> Ctrl+C) та вставте сюди:
-                </Text>
-                <TextInput
-                  style={styles.modalTextArea}
-                  placeholder="Вставте сюди скопійований текст або HTML сторінки розкладу..."
-                  placeholderTextColor="#64748b"
-                  multiline
-                  numberOfLines={6}
-                  value={pastedText}
-                  onChangeText={setPastedText}
-                />
-                <TouchableOpacity
-                  style={styles.modalSubmitButton}
-                  onPress={handleParsePastedText}
-                >
-                  <Text style={styles.modalSubmitText}>🚀 Розпізнати та Зберегти</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.modalSubtitle}>
-                  Введіть ваші логін та пароль від cabinet.kai.edu.ua для автоматичного завантаження:
-                </Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Логін від cabinet.kai.edu.ua..."
-                  placeholderTextColor="#64748b"
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Пароль..."
-                  placeholderTextColor="#64748b"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity
-                  style={styles.modalSubmitButton}
-                  onPress={handleLiveFetch}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.modalSubmitText}>🔑 Авторизуватися та Завантажити</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Логін від cabinet.kai.edu.ua..."
+              placeholderTextColor="#64748b"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Пароль..."
+              placeholderTextColor="#64748b"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <TouchableOpacity
+              style={styles.modalSubmitButton}
+              onPress={handleLiveFetch}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.modalSubmitText}>🚀 Авторизуватися та Завантажити</Text>
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.modalCloseBtn}
-              onPress={() => setImportModalVisible(false)}
+              onPress={() => setLoginModalVisible(false)}
             >
               <Text style={styles.modalCloseText}>Закрити</Text>
             </TouchableOpacity>
@@ -311,16 +257,16 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
       {/* Список пар */}
       {lessons.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📥</Text>
-          <Text style={styles.emptyTitle}>Розклад ще не імпортовано</Text>
+          <Text style={styles.emptyIcon}>🔄</Text>
+          <Text style={styles.emptyTitle}>Розклад ще не завантажено</Text>
           <Text style={styles.emptySubtitle}>
-            Скопіюйте розклад з cabinet.kai.edu.ua/student/schedule або введіть логін для автоматичного розпізнавання!
+            Натисніть кнопку "🔄 Оновити розклад", щоб автоматично завантажити пари з cabinet.kai.edu.ua!
           </Text>
           <TouchableOpacity
             style={styles.emptyFetchButton}
-            onPress={() => setImportModalVisible(true)}
+            onPress={handleRefreshClick}
           >
-            <Text style={styles.emptyFetchButtonText}>📥 Завантажити розклад з КАИ</Text>
+            <Text style={styles.emptyFetchButtonText}>🔑 Завантажити розклад з КАИ</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -659,10 +605,10 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 420,
     backgroundColor: '#1e293b',
     borderRadius: 20,
-    padding: 20,
+    padding: 24,
     borderWidth: 1,
     borderColor: '#334155',
   },
@@ -670,50 +616,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#f8fafc',
-    marginBottom: 14,
-  },
-  modalTabRow: {
-    flexDirection: 'row',
-    backgroundColor: '#0f172a',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 14,
-  },
-  modalTabBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  modalTabBtnActive: {
-    backgroundColor: '#0284c7',
-  },
-  modalTabText: {
-    fontSize: 11,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  modalTabTextActive: {
-    color: '#ffffff',
-    fontWeight: '700',
+    marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 13,
     color: '#94a3b8',
-    marginBottom: 12,
+    marginBottom: 16,
     lineHeight: 18,
-  },
-  modalTextArea: {
-    backgroundColor: '#0f172a',
-    borderRadius: 10,
-    padding: 12,
-    color: '#f8fafc',
-    fontSize: 13,
-    borderWidth: 1,
-    borderColor: '#334155',
-    marginBottom: 14,
-    height: 120,
-    textAlignVertical: 'top',
   },
   modalInput: {
     backgroundColor: '#0f172a',
@@ -728,7 +637,7 @@ const styles = StyleSheet.create({
   },
   modalSubmitButton: {
     backgroundColor: '#0284c7',
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 4,

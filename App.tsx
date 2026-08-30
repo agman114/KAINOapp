@@ -23,9 +23,20 @@ export default function App() {
       try {
         await NotificationService.requestPermission();
         const storedProfile = await StorageService.getStudentProfile();
-        const storedSchedule = await KaiService.loadSchedule();
+        const storedSchedule = await StorageService.getSchedule();
+        
         setStudent(storedProfile);
         setSchedule(storedSchedule);
+
+        // Тихий фоновый забор свежего расписания с сайта КАИ при старте
+        if (storedProfile && storedProfile.isAuthenticated) {
+          KaiService.autoSyncSchedule().then(freshData => {
+            if (freshData) {
+              setStudent(freshData.profile);
+              setSchedule(freshData.schedule);
+            }
+          }).catch(e => console.log('Silent auto-sync background info:', e));
+        }
       } catch (e) {
         console.error('Initialization error:', e);
       } finally {

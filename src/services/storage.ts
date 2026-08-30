@@ -6,27 +6,44 @@ const KEYS = {
   STUDENT_PROFILE: 'kaino_student_profile',
   SCHEDULE: 'kaino_schedule',
   NOTIFICATIONS_ENABLED: 'kaino_notifications',
+  USER_CREDENTIALS: 'kaino_user_credentials',
 };
 
 export const StorageService = {
   /**
-   * Загрузка профиля студента (с двойной гарантией сохранения на диске)
+   * Сохранение / получение логина и пароля студента для авто-синхронизации
+   */
+  async getCredentials(): Promise<{ username?: string; password?: string } | null> {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.USER_CREDENTIALS);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async saveCredentials(creds: { username: string; password: string }): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.USER_CREDENTIALS, JSON.stringify(creds));
+    } catch (e) {
+      console.error('Failed to save credentials', e);
+    }
+  },
+
+  /**
+   * Загрузка профиля студента
    */
   async getStudentProfile(): Promise<StudentProfile | null> {
     try {
-      // 1. Из локальной памяти бразуера/приложения
       const data = await AsyncStorage.getItem(KEYS.STUDENT_PROFILE);
       if (data) return JSON.parse(data);
 
-      // 2. Резервный забор из незгораемого файла на диске через API
       const diskResp = await axios.get('/api/storage/load', { timeout: 3000 });
       if (diskResp.data && diskResp.data.profile) {
         await AsyncStorage.setItem(KEYS.STUDENT_PROFILE, JSON.stringify(diskResp.data.profile));
         return diskResp.data.profile;
       }
-    } catch {
-      // Игнорируем ошибки сети при офлайн старте
-    }
+    } catch {}
     return null;
   },
 
@@ -34,7 +51,8 @@ export const StorageService = {
     try {
       await AsyncStorage.setItem(KEYS.STUDENT_PROFILE, JSON.stringify(profile));
       const currentSchedule = await this.getSchedule();
-      await axios.post('/api/storage/save', { profile, schedule: currentSchedule }, { timeout: 3000 }).catch(() => {});
+      const creds = await this.getCredentials();
+      await axios.post('/api/storage/save', { profile, schedule: currentSchedule, creds }, { timeout: 3000 }).catch(() => {});
     } catch (e) {
       console.error('Failed to save profile', e);
     }
@@ -53,9 +71,7 @@ export const StorageService = {
         await AsyncStorage.setItem(KEYS.SCHEDULE, JSON.stringify(diskResp.data.schedule));
         return diskResp.data.schedule;
       }
-    } catch {
-      // Игнорируем сети
-    }
+    } catch {}
     return [];
   },
 
@@ -63,7 +79,8 @@ export const StorageService = {
     try {
       await AsyncStorage.setItem(KEYS.SCHEDULE, JSON.stringify(schedule));
       const profile = await this.getStudentProfile();
-      await axios.post('/api/storage/save', { profile, schedule }, { timeout: 3000 }).catch(() => {});
+      const creds = await this.getCredentials();
+      await axios.post('/api/storage/save', { profile, schedule, creds }, { timeout: 3000 }).catch(() => {});
     } catch (e) {
       console.error('Failed to save schedule', e);
     }
@@ -88,8 +105,8 @@ export const StorageService = {
 
   async clearAll(): Promise<void> {
     try {
-      await AsyncStorage.multiRemove([KEYS.STUDENT_PROFILE, KEYS.SCHEDULE]);
-      await axios.post('/api/storage/save', { profile: null, schedule: [] }, { timeout: 3000 }).catch(() => {});
+      await AsyncStorage.multiRemove([KEYS.STUDENT_PROFILE, KEYS.SCHEDULE, KEYS.USER_CREDENTIALS]);
+      await axios.post('/api/storage/save', { profile: null, schedule: [], creds: null }, { timeout: 3000 }).catch(() => {});
     } catch (e) {
       console.error('Failed to clear storage', e);
     }
