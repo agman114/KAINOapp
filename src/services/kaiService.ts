@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { StudentProfile, DaySchedule, ERROR_CODES } from '../types/kai';
+import { StudentProfile, DaySchedule, Lesson, ERROR_CODES } from '../types/kai';
 import { StorageService } from './storage';
 import { MOCK_STUDENT, MOCK_SCHEDULE } from './mockData';
 
@@ -62,5 +62,67 @@ export class KaiService {
       console.warn('[KAI SERVICE] Auto-refresh failed (offline or server error):', e.message);
       return null;
     }
+  }
+
+  /**
+   * Синоним для авто-синхронизации, вызваемой из App.tsx
+   */
+  static async autoSyncSchedule(): Promise<{ profile: StudentProfile; schedule: DaySchedule[] } | null> {
+    return await this.refreshSchedule();
+  }
+
+  /**
+   * Расчет текущей или следующей пары по времени
+   */
+  static getCurrentLesson(schedule: DaySchedule[]): { currentLesson: Lesson | null; nextLesson: Lesson | null; isBreak: boolean } | null {
+    if (!schedule || schedule.length === 0) return null;
+
+    const now = new Date();
+    const currentDayOfWeek = now.getDay(); // 0 - Sun, 1 - Mon, ...
+    const dayOfWeek = currentDayOfWeek === 0 ? 7 : currentDayOfWeek;
+
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentTotalMins = hours * 60 + minutes;
+
+    const todayObj = schedule.find(s => s.dayOfWeek === dayOfWeek);
+    if (!todayObj || !todayObj.lessons || todayObj.lessons.length === 0) {
+      return null;
+    }
+
+    let currentLesson: Lesson | null = null;
+    let nextLesson: Lesson | null = null;
+    let isBreak = false;
+
+    for (let i = 0; i < todayObj.lessons.length; i++) {
+      const lesson = todayObj.lessons[i];
+      const [hStart, mStart] = lesson.timeStart.split(':').map(Number);
+      const [hEnd, mEnd] = lesson.timeEnd.split(':').map(Number);
+      const startMins = hStart * 60 + mStart;
+      const endMins = hEnd * 60 + mEnd;
+
+      if (currentTotalMins >= startMins && currentTotalMins <= endMins) {
+        currentLesson = lesson;
+        if (i + 1 < todayObj.lessons.length) {
+          nextLesson = todayObj.lessons[i + 1];
+        }
+        break;
+      }
+
+      if (currentTotalMins < startMins) {
+        nextLesson = lesson;
+        if (i > 0) {
+          const prevLesson = todayObj.lessons[i - 1];
+          const [pHend, pMend] = prevLesson.timeEnd.split(':').map(Number);
+          const prevEndMins = pHend * 60 + pMend;
+          if (currentTotalMins >= prevEndMins) {
+            isBreak = true;
+          }
+        }
+        break;
+      }
+    }
+
+    return { currentLesson, nextLesson, isBreak };
   }
 }
