@@ -2,18 +2,38 @@ const { app, BrowserWindow, Tray, Menu, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// Start embedded server.js immediately at startup
+const LOG_FILE = path.join(__dirname, 'electron_debug.log');
+
+function logToFile(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  try {
+    fs.appendFileSync(LOG_FILE, line, 'utf-8');
+  } catch (e) {}
+}
+
+logToFile('=================== KAINOapp DESKTOP STARTUP ===================');
+logToFile(`__dirname: ${__dirname}`);
+logToFile(`process.cwd: ${process.cwd()}`);
+logToFile(`resourcesPath: ${process.resourcesPath}`);
+
+process.on('uncaughtException', (err) => {
+  logToFile(`[MAIN UNCAUGHT EXCEPTION] ${err ? (err.stack || err.message || err) : 'Unknown error'}`);
+});
+
+// Start embedded server.js
 try {
+  logToFile('Initializing embedded server.js...');
   require('./server.js');
-  console.log('[ELECTRON MAIN] Embedded server.js initialized at startup.');
+  logToFile('Embedded server.js initialized successfully.');
 } catch (e) {
-  console.error('[ELECTRON MAIN] Server initialization error:', e);
+  logToFile(`[SERVER INIT ERROR] ${e ? (e.stack || e.message) : e}`);
 }
 
 let mainWindow;
 let tray;
 
 function createWindow() {
+  logToFile('Creating BrowserWindow...');
   mainWindow = new BrowserWindow({
     width: 1080,
     height: 760,
@@ -25,13 +45,17 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: false,
+      allowRunningInsecureContent: true,
     },
     backgroundColor: '#0f172a',
   });
 
-  // Автоматический ретрай при старте сервера
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    logToFile(`[RENDERER LOG lvl=${level}] ${message} (${sourceId}:${line})`);
+  });
+
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[ELECTRON LOAD FAIL] Code ${errorCode}: ${errorDescription} (${validatedURL}). Retrying in 1s...`);
+    logToFile(`[DID FAIL LOAD] Code ${errorCode}: ${errorDescription} (${validatedURL}). Retrying...`);
     setTimeout(() => {
       if (mainWindow) {
         mainWindow.loadURL('http://localhost:3000');
@@ -39,9 +63,16 @@ function createWindow() {
     }, 1000);
   });
 
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    logToFile(`[RENDER PROCESS GONE] Reason: ${details.reason}, exitCode: ${details.exitCode}`);
+  });
+
+  const distHtmlPath = path.join(__dirname, 'dist', 'index.html');
+  logToFile(`Checking local distHtmlPath: ${distHtmlPath}, Exists: ${fs.existsSync(distHtmlPath)}`);
+
+  logToFile('Loading http://localhost:3000...');
   mainWindow.loadURL('http://localhost:3000');
 
-  // Скрытие в трей при закрытии окна
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
@@ -98,7 +129,7 @@ function createTray() {
       }
     });
   } catch (e) {
-    console.log('Tray icon setup skipped.');
+    logToFile(`Tray icon setup skipped: ${e.message}`);
   }
 }
 
