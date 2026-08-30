@@ -1,56 +1,137 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
-import { MOCK_EXAMS } from '../services/mockData';
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
+import { ExamItem } from '../types/kai';
 
 export const SessionScreen: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'grades' | 'schedule'>('grades');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // Демонстрационные данные сессии при наличии опубликованных экзаменов
+  const mockExams: ExamItem[] = [
+    {
+      id: 'e1',
+      subject: 'Комп\'ютерна логіка',
+      type: 'Екзамен',
+      date: '15.01.2025',
+      time: '09:00',
+      teacher: 'Коцюр Анатолій Борисович',
+      room: 'ауд. 3.328',
+      grade: 'Відмінно',
+      points: 95,
+    },
+    {
+      id: 'e2',
+      subject: 'Математика для ІТ',
+      type: 'Екзамен',
+      date: '19.01.2025',
+      time: '10:00',
+      teacher: 'Пахненко Валерія Валеріївна',
+      room: 'ауд. 11.110',
+      grade: 'Добре',
+      points: 84,
+    },
+    {
+      id: 'e3',
+      subject: 'Дискретна математика',
+      type: 'Диф. залік',
+      date: '22.01.2025',
+      time: '11:40',
+      teacher: 'Марченко Надія Борисівна',
+      room: 'ауд. 6.200',
+      grade: 'Зараховано',
+      points: 90,
+    },
+  ];
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Сесія та Успішність</Text>
-        <Text style={styles.subtitle}>Результати іспитів, заліків та розклад підсумкового контролю</Text>
+      {/* Header Info */}
+      <View style={styles.headerCard}>
+        <Text style={styles.groupBadge}>Б-F7-26-1-КС</Text>
+        <Text style={styles.headerTitle}>Сесія та Оцінки</Text>
+        <Text style={styles.headerSubtitle}>2024/2025 Навчальний рік • Зимова сесія</Text>
+
+        {/* Переключатель вкладок "Оцінки" и "Розклад сесії" */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'grades' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('grades')}
+          >
+            <Text style={[styles.tabText, activeTab === 'grades' && styles.tabTextActive]}>
+              📊 Оцінки та бали
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'schedule' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('schedule')}
+          >
+            <Text style={[styles.tabText, activeTab === 'schedule' && styles.tabTextActive]}>
+              📅 Розклад сесії
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.statsCard}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>91.6</Text>
-          <Text style={styles.statLabel}>Середній бал</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>3 / 3</Text>
-          <Text style={styles.statLabel}>Складено предметів</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: '#10b981' }]}>Стипендія</Text>
-          <Text style={styles.statLabel}>Підвищена</Text>
-        </View>
-      </View>
-
-      <Text style={styles.sectionTitle}>Розклад екзаменів та заліків</Text>
-
-      {MOCK_EXAMS.map(exam => (
-        <View key={exam.id} style={styles.examCard}>
-          <View style={styles.examHeader}>
-            <View style={[styles.badge, exam.type === 'Екзамен' ? styles.examBadge : styles.passBadge]}>
-              <Text style={styles.badgeText}>{exam.type}</Text>
-            </View>
-            <Text style={styles.dateText}>📅 {exam.date} о {exam.time}</Text>
+      {/* Вкладка 1: Оцінки та бали */}
+      {activeTab === 'grades' && (
+        <View style={styles.section}>
+          <View style={styles.statusBox}>
+            <Text style={styles.statusIcon}>⏳</Text>
+            <Text style={styles.statusTitle}>Оцінки ще не доступні...</Text>
+            <Text style={styles.statusSubtitle}>
+              Відомості про підсумкові оцінки та бали з заліків та екзаменів з'являться тут після початку сесії.
+            </Text>
           </View>
 
-          <Text style={styles.subjectText}>{exam.subject}</Text>
+          {/* Пример отображения если оценки появятся */}
+          <Text style={styles.sectionHeaderTitle}>Попередній перегляд (Демо)</Text>
+          {mockExams.map((exam) => (
+            <View key={exam.id} style={styles.examCard}>
+              <View style={styles.examTopRow}>
+                <View style={styles.examBadge}>
+                  <Text style={styles.examBadgeText}>{exam.type}</Text>
+                </View>
+                {exam.points && (
+                  <View style={styles.pointsBadge}>
+                    <Text style={styles.pointsText}>{exam.points} б.</Text>
+                  </View>
+                )}
+              </View>
 
-          <Text style={styles.metaText}>👨‍🏫 {exam.teacher}</Text>
-          <Text style={styles.metaText}>📍 Ауд. {exam.room}</Text>
+              <Text style={styles.examSubject}>{exam.subject}</Text>
+              <Text style={styles.examMeta}>👨‍🏫 {exam.teacher}</Text>
+              <Text style={styles.examMeta}>📍 {exam.room} • 🗓 {exam.date} о {exam.time}</Text>
 
-          {exam.grade && (
-            <View style={styles.gradeBox}>
-              <Text style={styles.gradeLabel}>Результат:</Text>
-              <Text style={styles.gradeValue}>{exam.grade}</Text>
+              {exam.grade && (
+                <View style={styles.gradeBox}>
+                  <Text style={styles.gradeLabel}>Оцінка: </Text>
+                  <Text style={styles.gradeValue}>{exam.grade}</Text>
+                </View>
+              )}
             </View>
-          )}
+          ))}
         </View>
-      ))}
+      )}
+
+      {/* Вкладка 2: Розклад сесії */}
+      {activeTab === 'schedule' && (
+        <View style={styles.section}>
+          <View style={styles.statusBox}>
+            <Text style={styles.statusIcon}>📅</Text>
+            <Text style={styles.statusTitle}>Подій сесії не знайдено</Text>
+            <Text style={styles.statusSubtitle}>
+              На даний момент розклад консультацій та екзаменів не опубліковано деканатом.
+            </Text>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 };
@@ -64,108 +145,149 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  header: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#f8fafc',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginTop: 4,
-  },
-  statsCard: {
-    flexDirection: 'row',
+  headerCard: {
     backgroundColor: '#1e293b',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 24,
-    justifyContent: 'space-around',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  groupBadge: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#f8fafc',
+    marginTop: 2,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginTop: 2,
+    marginBottom: 16,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: '#0284c7',
+  },
+  tabText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  tabTextActive: {
+    color: '#ffffff',
+  },
+  section: {
+    gap: 12,
+  },
+  statusBox: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#334155',
   },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#38bdf8',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 4,
-  },
-  divider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#334155',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#e2e8f0',
+  statusIcon: {
+    fontSize: 40,
     marginBottom: 12,
+  },
+  statusTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#f8fafc',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  statusSubtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  sectionHeaderTitle: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   examCard: {
     backgroundColor: '#1e293b',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  examHeader: {
+  examTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  badge: {
+  examBadge: {
+    backgroundColor: '#ec489922',
+    borderColor: '#ec4899',
+    borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  examBadge: {
-    backgroundColor: '#ef444422',
-  },
-  passBadge: {
-    backgroundColor: '#10b98122',
-  },
-  badgeText: {
+  examBadgeText: {
+    color: '#f472b6',
     fontSize: 11,
     fontWeight: '700',
-    color: '#f8fafc',
   },
-  dateText: {
+  pointsBadge: {
+    backgroundColor: '#10b98122',
+    borderColor: '#10b981',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  pointsText: {
+    color: '#34d399',
     fontSize: 12,
-    color: '#a5b4fc',
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  subjectText: {
+  examSubject: {
     fontSize: 16,
     fontWeight: '700',
     color: '#f8fafc',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  metaText: {
+  examMeta: {
     fontSize: 13,
     color: '#94a3b8',
     marginBottom: 4,
   },
   gradeBox: {
-    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#334155',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   gradeLabel: {
     fontSize: 13,
@@ -173,7 +295,7 @@ const styles = StyleSheet.create({
   },
   gradeValue: {
     fontSize: 14,
+    color: '#38bdf8',
     fontWeight: '700',
-    color: '#34d399',
   },
 });
