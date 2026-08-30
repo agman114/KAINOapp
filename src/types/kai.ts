@@ -9,18 +9,18 @@ export interface Lesson {
   teacher: string;   // e.g. "доц. Мельник І. С."
   room: string;      // e.g. "1.204"
   building?: string; // e.g. "Корпус КАИ"
-  weekNumber: number; // 1 = 1 тиждень, 2 = 2 тиждень, etc.
-  weekName?: string;  // e.g. "1 тиждень"
-  dayOfWeek: number;  // 1 = Понеділок, ..., 6 = Субота
-  dateStr?: string;   // e.g. "31.08"
-  onlineUrl?: string; // Ссылка на MS Teams / Zoom
+  weekNumber: number;
+  weekName?: string;
+  dayOfWeek: number;
+  dateStr?: string;
+  onlineUrl?: string;
 }
 
 export interface DaySchedule {
   dayOfWeek: number;
   dayName: string;
-  dateStr?: string;   // e.g. "31.08"
-  weekNumber: number; // 1 or 2
+  dateStr?: string;
+  weekNumber: number;
   lessons: Lesson[];
 }
 
@@ -32,6 +32,9 @@ export interface StudentProfile {
   course: number;
   educationForm: string;
   photoUrl?: string;
+  studentIdCard?: string;
+  email?: string;
+  phone?: string;
   isAuthenticated: boolean;
 }
 
@@ -47,10 +50,23 @@ export interface ExamItem {
   points?: number;
 }
 
-export interface FinancialItem {
+export interface ElectiveCourse {
   id: string;
   title: string;
-  amount: string;
-  dueDate: string;
-  status: 'Сплачено' | 'Очікує оплати' | 'Заборгованість';
+  code: string;
+  department: string;
+  status: 'Обрано' | 'В обробці' | 'Доступно';
+}
+
+export interface QualificationWork {
+  topic: string;
+  supervisor: string;
+  status: string;
+  defenseDate?: string;
+}
+
+export interface BypassSheetItem {
+  department: string;
+  status: 'Підтверджено' | 'В очікуванні' | 'Не пройдено';
+  date?: string;
 }

@@ -8,10 +8,11 @@ import { UpdateService, UpdateInfo } from './src/services/updateService';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { SessionScreen } from './src/screens/SessionScreen';
+import { ServicesScreen } from './src/screens/ServicesScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
-type Tab = 'schedule' | 'session' | 'profile' | 'settings';
+type Tab = 'schedule' | 'session' | 'services' | 'profile';
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
 export default function App() {
@@ -69,19 +70,16 @@ export default function App() {
       try {
         await NotificationService.requestPermission();
         
-        // 1. Мгновенная загрузка кэшированного расписания из незгораемой памяти
         const storedProfile = await StorageService.getStudentProfile();
         const storedSchedule = await StorageService.getSchedule();
         
         setStudent(storedProfile);
         setSchedule(storedSchedule);
 
-        // 2. АВТО-ЗАГРУЗКА ПРИ КАЖДОМ ВХОДЕ В ПРИЛОЖЕНИЕ
         if (storedProfile && storedProfile.isAuthenticated) {
           performAutoSync(false);
         }
 
-        // 3. ПРОВЕРКА ОБНОВЛЕНИЙ С GITHUB
         checkAppUpdate();
       } catch (e) {
         console.error('Initialization error:', e);
@@ -92,7 +90,6 @@ export default function App() {
 
     initApp();
 
-    // 4. АВТОМАТИЧЕСКАЯ ФОНОВАЯ СИНХРОНИЗАЦИЯ РАЗ В ЧАС (60 минут)
     const hourlyInterval = setInterval(() => {
       console.log('[APP HOURLY TIMER] Running 1-hour periodic schedule sync & update check...');
       performAutoSync(true);
@@ -164,10 +161,10 @@ export default function App() {
           />
         )}
         {activeTab === 'session' && <SessionScreen />}
+        {activeTab === 'services' && <ServicesScreen />}
         {activeTab === 'profile' && (
           <ProfileScreen student={student} onLogout={handleLogout} />
         )}
-        {activeTab === 'settings' && <SettingsScreen />}
       </View>
 
       {/* Навигационная панель */}
@@ -188,7 +185,17 @@ export default function App() {
         >
           <Text style={styles.navIcon}>📊</Text>
           <Text style={[styles.navLabel, activeTab === 'session' && styles.navLabelActive]}>
-            Сесія
+            Навчання
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.navItem, activeTab === 'services' && styles.navItemActive]}
+          onPress={() => setActiveTab('services')}
+        >
+          <Text style={styles.navIcon}>🛠</Text>
+          <Text style={[styles.navLabel, activeTab === 'services' && styles.navLabelActive]}>
+            Сервіси
           </Text>
         </TouchableOpacity>
 
@@ -199,16 +206,6 @@ export default function App() {
           <Text style={styles.navIcon}>👤</Text>
           <Text style={[styles.navLabel, activeTab === 'profile' && styles.navLabelActive]}>
             Профіль
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
-          onPress={() => setActiveTab('settings')}
-        >
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={[styles.navLabel, activeTab === 'settings' && styles.navLabelActive]}>
-            Налаштування
           </Text>
         </TouchableOpacity>
       </View>
