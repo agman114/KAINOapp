@@ -2,16 +2,16 @@ const { app, BrowserWindow, Tray, Menu, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-let mainWindow;
-let tray;
-
-// Start embedded server.js directly inside Electron main process
+// Start embedded server.js immediately at startup
 try {
   require('./server.js');
-  console.log('[ELECTRON MAIN] Embedded server.js initialized successfully.');
+  console.log('[ELECTRON MAIN] Embedded server.js initialized at startup.');
 } catch (e) {
-  console.error('[ELECTRON MAIN] Failed to initialize embedded server.js:', e);
+  console.error('[ELECTRON MAIN] Server initialization error:', e);
 }
+
+let mainWindow;
+let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -29,7 +29,16 @@ function createWindow() {
     backgroundColor: '#0f172a',
   });
 
-  // Загружаем локальный сервер
+  // Автоматический ретрай при старте сервера
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[ELECTRON LOAD FAIL] Code ${errorCode}: ${errorDescription} (${validatedURL}). Retrying in 1s...`);
+    setTimeout(() => {
+      if (mainWindow) {
+        mainWindow.loadURL('http://localhost:3000');
+      }
+    }, 1000);
+  });
+
   mainWindow.loadURL('http://localhost:3000');
 
   // Скрытие в трей при закрытии окна
