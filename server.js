@@ -18,7 +18,7 @@ const MIME_TYPES = {
 };
 
 function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
-  console.log('[CHEERIO PARSER] Parsing personal student schedule by day & time...');
+  console.log('[CHEERIO PARSER] Parsing personal student schedule by week numbers (1 тиждень, 2 тиждень)...');
   const daySchedules = [];
   const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
 
@@ -26,7 +26,7 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
     daySchedules.push({ dayOfWeek: d, dayName: days[d - 1], lessons: [] });
   }
 
-  function extractWeek(html, weekTypeStr) {
+  function extractWeek(html, weekNum, weekLabel) {
     if (!html) return;
     const $ = cheerio.load(html);
 
@@ -63,12 +63,12 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
           const dayObj = daySchedules.find(ds => ds.dayOfWeek === dayOfWeek);
           if (dayObj) {
             const isDuplicate = dayObj.lessons.some(
-              l => l.subject === subject && l.timeStart === timeStart && l.type === type && l.weekType === weekTypeStr
+              l => l.subject === subject && l.timeStart === timeStart && l.type === type && l.weekNumber === weekNum
             );
 
             if (!isDuplicate) {
               dayObj.lessons.push({
-                id: `${dayOfWeek}-${weekTypeStr}-${rowIdx}-${cardIdx}`,
+                id: `${dayOfWeek}-week${weekNum}-${rowIdx}-${cardIdx}`,
                 subject,
                 type,
                 timeStart,
@@ -76,7 +76,8 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
                 teacher: teacher || 'Викладач КАИ',
                 room: room || 'Аудиторія',
                 building: 'КАИ',
-                weekType: weekTypeStr,
+                weekNumber: weekNum,
+                weekName: weekLabel,
                 dayOfWeek,
                 onlineUrl,
               });
@@ -87,8 +88,8 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
     });
   }
 
-  extractWeek(htmlWeek1, 'odd');  // 1-й тиждень
-  extractWeek(htmlWeek2, 'even'); // 2-й тиждень
+  extractWeek(htmlWeek1, 1, '1 тиждень');
+  extractWeek(htmlWeek2, 2, '2 тиждень');
 
   daySchedules.forEach(ds => {
     ds.lessons.sort((a, b) => {
@@ -97,6 +98,9 @@ function parseScheduleWithCheerio(htmlWeek1, htmlWeek2) {
       return (h1 * 60 + m1) - (h2 * 60 + m2);
     });
   });
+
+  const total = daySchedules.reduce((acc, d) => acc + d.lessons.length, 0);
+  console.log(`[CHEERIO PARSER] Total parsed study week lessons: ${total}`);
 
   return daySchedules;
 }
@@ -128,14 +132,12 @@ function parseProfilePage(html, fallbackUsername) {
 }
 
 const server = http.createServer(async (req, res) => {
-  // Эндпоинты незгораемого локального хранения
   if (req.url === '/api/storage/save' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
       try {
         fs.writeFileSync(LOCAL_DATA_FILE, body, 'utf-8');
-        console.log('[PERMANENT STORAGE] Saved student data permanently to local_user_data.json');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
       } catch (e) {
@@ -150,7 +152,6 @@ const server = http.createServer(async (req, res) => {
     try {
       if (fs.existsSync(LOCAL_DATA_FILE)) {
         const data = fs.readFileSync(LOCAL_DATA_FILE, 'utf-8');
-        console.log('[PERMANENT STORAGE] Loaded permanent student data from local_user_data.json');
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(data);
       } else {
@@ -174,7 +175,6 @@ const server = http.createServer(async (req, res) => {
         const profile = parseProfilePage(pwResult.contentProfile, username);
         const schedule = parseScheduleWithCheerio(pwResult.contentWeek1, pwResult.contentWeek2);
 
-        // Автоматически бэкапим в незгораемый локальный файл на диске
         fs.writeFileSync(LOCAL_DATA_FILE, JSON.stringify({ profile, schedule }), 'utf-8');
 
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -208,5 +208,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`KAINOapp Server running with Permanent Disk Storage at http://localhost:${PORT}/`);
+  console.log(`KAINOapp Server running with Study Weeks parsing at http://localhost:${PORT}/`);
 });

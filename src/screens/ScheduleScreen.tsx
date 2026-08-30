@@ -24,7 +24,7 @@ interface Props {
 
 export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSchedule }) => {
   const [selectedDay, setSelectedDay] = useState<number>(1);
-  const [weekFilter, setWeekFilter] = useState<'all' | 'odd' | 'even'>('all');
+  const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   
   // Modals
   const [importModalVisible, setImportModalVisible] = useState<boolean>(false);
@@ -72,7 +72,7 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
   const activeDaySchedule = schedule.find(d => d.dayOfWeek === selectedDay);
   const lessons = (activeDaySchedule?.lessons || []).filter(l => {
     if (weekFilter === 'all') return true;
-    return l.weekType === 'all' || l.weekType === weekFilter;
+    return l.weekNumber === weekFilter;
   });
 
   const handleParsePastedText = async () => {
@@ -163,16 +163,16 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
             <Text style={[styles.weekChipText, weekFilter === 'all' && styles.weekChipTextActive]}>Всі тижні</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.weekChip, weekFilter === 'odd' && styles.weekChipActive]}
-            onPress={() => setWeekFilter('odd')}
+            style={[styles.weekChip, weekFilter === 1 && styles.weekChipActive]}
+            onPress={() => setWeekFilter(1)}
           >
-            <Text style={[styles.weekChipText, weekFilter === 'odd' && styles.weekChipTextActive]}>1-й (Непарний)</Text>
+            <Text style={[styles.weekChipText, weekFilter === 1 && styles.weekChipTextActive]}>1 тиждень</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.weekChip, weekFilter === 'even' && styles.weekChipActive]}
-            onPress={() => setWeekFilter('even')}
+            style={[styles.weekChip, weekFilter === 2 && styles.weekChipActive]}
+            onPress={() => setWeekFilter(2)}
           >
-            <Text style={[styles.weekChipText, weekFilter === 'even' && styles.weekChipTextActive]}>2-й (Парний)</Text>
+            <Text style={[styles.weekChipText, weekFilter === 2 && styles.weekChipTextActive]}>2 тиждень</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -339,9 +339,9 @@ export const ScheduleScreen: React.FC<Props> = ({ schedule, student, onUpdateSch
                   <View style={[styles.typeBadge, { backgroundColor: typeStyle.bg, borderColor: typeStyle.border }]}>
                     <Text style={[styles.typeBadgeText, { color: typeStyle.text }]}>{lesson.type}</Text>
                   </View>
-                  {lesson.weekType !== 'all' && (
+                  {lesson.weekNumber && (
                     <Text style={styles.weekTag}>
-                      {lesson.weekType === 'odd' ? '1-й тиждень' : '2-й тиждень'}
+                      {lesson.weekName || `${lesson.weekNumber} тиждень`}
                     </Text>
                   )}
                 </View>
