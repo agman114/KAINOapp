@@ -1,8 +1,20 @@
 const { app, BrowserWindow, Tray, Menu, Notification } = require('electron');
 const path = require('path');
+const { fork } = require('child_process');
 
 let mainWindow;
 let tray;
+let serverProcess;
+
+function startEmbeddedServer() {
+  try {
+    const serverPath = path.join(__dirname, 'server.js');
+    console.log(`[ELECTRON] Starting embedded server.js from ${serverPath}...`);
+    serverProcess = fork(serverPath);
+  } catch (e) {
+    console.error('[ELECTRON] Failed to start embedded server:', e);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -13,20 +25,15 @@ function createWindow() {
     title: 'KAINOapp — Кабінет студента КАИ',
     icon: path.join(__dirname, 'assets/icon.png'),
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false, // Облегчает запросы к cabinet.kai.edu.ua без CORS ограничения
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false,
     },
     backgroundColor: '#0f172a',
   });
 
-  // Загружаем скомпилированную веб-сборку или локальный сервер
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
-  } else {
-    mainWindow.loadURL('http://localhost:3000');
-  }
+  // Загружаем локальный сервер
+  mainWindow.loadURL('http://localhost:3000');
 
   // Скрытие в трей при закрытии окна
   mainWindow.on('close', (event) => {
@@ -35,7 +42,7 @@ function createWindow() {
       mainWindow.hide();
       if (Notification.isSupported()) {
         new Notification({
-          title: 'KAINOapp працює у фоні',
+          title: 'KAINOapp працює у фоні 🎓',
           body: 'Додаток згорнуто в трей і продовжує надсилати сповіщення про пари.',
         }).show();
       }
@@ -58,7 +65,7 @@ function createTray() {
         },
       },
       {
-        label: 'Перевірити оновлення расписания',
+        label: 'Оновити сторінку',
         click: () => {
           if (mainWindow) {
             mainWindow.reload();
@@ -85,13 +92,16 @@ function createTray() {
       }
     });
   } catch (e) {
-    console.log('Tray icon not found, skipping tray setup.');
+    console.log('Tray icon setup skipped.');
   }
 }
 
 app.whenReady().then(() => {
-  createWindow();
-  createTray();
+  startEmbeddedServer();
+  setTimeout(() => {
+    createWindow();
+    createTray();
+  }, 1000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -100,8 +110,8 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+app.on('will-quit', () => {
+  if (serverProcess) {
+    serverProcess.kill();
   }
 });

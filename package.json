@@ -1,7 +1,7 @@
 {
   "name": "kainoapp",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "electron-main.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
