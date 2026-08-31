@@ -20,6 +20,9 @@
         "projectId": "7418e17a-cda6-4709-9e70-0769f1ee0461"
       }
     },
-    "owner": "agman115"
+    "owner": "agman115",
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
