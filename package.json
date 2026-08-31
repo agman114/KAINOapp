@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "build": "npx expo export --platform web && node fixDist.js",
     "desktop": "electron electron-main.js",
-    "build:exe": "electron-builder --win nsis",
+    "build:exe": "electron-builder --win portable nsis",
     "release": "node scripts/release.js"
   },
   "build": {
@@ -30,7 +30,10 @@
     ],
     "asar": false,
     "win": {
-      "target": "nsis"
+      "target": [
+        "portable",
+        "nsis"
+      ]
     }
   },
   "dependencies": {
